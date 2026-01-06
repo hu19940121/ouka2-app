@@ -34,7 +34,7 @@
 
 ### 下载
 
-前往 [Releases](https://github.com/YOUR_USERNAME/ouka2-app/releases) 页面下载最新版本：
+前往 [Releases](https://github.com/hu19940121/ouka2-app/releases) 页面下载最新版本：
 
 - **推荐**: `ETS2-China-Radio_x.x.x_x64-setup.exe` - NSIS 安装包，带卸载程序
 <!-- - 或者: `ETS2-China-Radio_x.x.x_x64_en-US.msi` - MSI 安装包 -->

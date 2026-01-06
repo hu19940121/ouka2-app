@@ -73,6 +73,7 @@ pub struct StreamServer {
     port: u16,
     state: Arc<ServerState>,
     shutdown_tx: Option<tokio::sync::oneshot::Sender<()>>,
+    is_running: bool,
 }
 
 impl StreamServer {
@@ -82,7 +83,13 @@ impl StreamServer {
             port,
             state: Arc::new(ServerState::new(port, ffmpeg_path)),
             shutdown_tx: None,
+            is_running: false,
         }
+    }
+
+    /// 检查服务器是否正在运行
+    pub fn is_running(&self) -> bool {
+        self.is_running
     }
 
     /// 获取共享状态
@@ -92,6 +99,10 @@ impl StreamServer {
 
     /// 启动服务器
     pub async fn start(&mut self) -> anyhow::Result<()> {
+        if self.is_running {
+            return Ok(());
+        }
+
         let (tx, rx) = tokio::sync::oneshot::channel();
         self.shutdown_tx = Some(tx);
 
@@ -121,6 +132,7 @@ impl StreamServer {
                 .ok();
         });
 
+        self.is_running = true;
         Ok(())
     }
 
@@ -128,6 +140,7 @@ impl StreamServer {
     pub fn stop(&mut self) {
         if let Some(tx) = self.shutdown_tx.take() {
             let _ = tx.send(());
+            self.is_running = false;
             log::info!("🛑 流媒体服务器已停止");
         }
     }

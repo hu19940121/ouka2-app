@@ -49,5 +49,16 @@ pub async fn get_server_status(
     state: State<'_, Arc<Mutex<AppState>>>,
 ) -> Result<ServerStatus, String> {
     let state = state.lock().await;
-    Ok(state.server.state().get_status().await)
+    let is_running = state.server.is_running();
+    let server_state = state.server.state();
+    let port = server_state.port;
+    let active_streams = server_state.active_streams.read().await.len();
+    let total_stations = server_state.stations.read().await.len();
+    
+    Ok(ServerStatus {
+        running: is_running,
+        port,
+        active_streams,
+        total_stations,
+    })
 }
