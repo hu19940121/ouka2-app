@@ -1,0 +1,58 @@
+[package]
+name = "ouka2-app"
+version = "0.1.0"
+description = "欧卡2中国电台桌面应用 - 将云听电台转换为欧卡2可用格式"
+authors = ["you"]
+edition = "2021"
+
+[lib]
+name = "ouka2_app_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+# Tauri 核心
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-opener = "2"
+
+# 序列化
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# 异步运行时
+tokio = { version = "1", features = ["full"] }
+
+# HTTP 客户端
+reqwest = { version = "0.12", features = ["json"] }
+
+# 嵌入式 HTTP 服务器
+axum = "0.7"
+tower-http = { version = "0.6", features = ["cors"] }
+
+# MD5 签名
+md5 = "0.7"
+
+# 数据库
+rusqlite = { version = "0.32", features = ["bundled"] }
+
+# 时间处理
+chrono = { version = "0.4", features = ["serde"] }
+
+# 错误处理
+anyhow = "1"
+thiserror = "1"
+
+# 日志
+log = "0.4"
+env_logger = "0.11"
+
+# 路径和目录
+dirs = "5"
+
+# 异步通道
+tokio-stream = "0.1"
+
+# URL 编码
+urlencoding = "2"
