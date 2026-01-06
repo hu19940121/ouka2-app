@@ -48,13 +48,13 @@ live_stream_def : .live_streams {{
                 "http://{}:{}/stream/{}",
                 self.server_host, self.server_port, station.id
             );
-            let name = self.to_english_name(&station.name);
             let genre = self.get_genre(station);
 
             // SII格式: stream_data[index]: "URL|Name|Genre|Language|Bitrate|Favorite"
+            // 欧卡2支持UTF-8编码的中文名称
             content.push_str(&format!(
                 " stream_data[{}]: \"{}|{}|{}|CN|128|0\"\n",
-                index, stream_url, name, genre
+                index, stream_url, station.name, genre
             ));
         }
 
@@ -115,7 +115,8 @@ live_stream_def : .live_streams {{
         paths
     }
 
-    /// 将中文电台名称转换为英文（欧卡2只支持ASCII字符）
+    /// 将中文电台名称转换为英文（备用方法，当欧卡2不支持中文时使用）
+    #[allow(dead_code)]
     fn to_english_name(&self, chinese_name: &str) -> String {
         // 常见电台名称映射
         let name_map = [
