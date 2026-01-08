@@ -16,12 +16,21 @@ pub struct BilibiliApi {
 /// 搜索结果中的视频信息
 #[derive(Debug, Clone, Deserialize)]
 pub struct SearchVideoResult {
+    #[serde(default)]
     pub bvid: String,
+    #[serde(default)]
     pub title: String,
+    #[serde(default)]
     pub author: String,
+    #[serde(default)]
     pub duration: String,
+    #[serde(default)]
     pub play: u64,
+    #[serde(default)]
     pub pic: String,
+    // aid 也可能存在
+    #[serde(default)]
+    pub aid: u64,
 }
 
 /// 分页列表响应
@@ -191,15 +200,31 @@ impl BilibiliApi {
             .send()
             .await?;
 
-        let search_resp: SearchResponse = resp.json().await?;
+        let text = resp.text().await?;
+        
+        // 尝试解析 JSON
+        let search_resp: SearchResponse = match serde_json::from_str(&text) {
+            Ok(r) => r,
+            Err(e) => {
+                log::error!("   解析搜索结果失败: {}", e);
+                log::debug!("   原始响应: {}", &text[..text.len().min(500)]);
+                anyhow::bail!("解析搜索结果失败: {}", e);
+            }
+        };
         
         if search_resp.code != 0 {
             anyhow::bail!("搜索失败，错误码: {}", search_resp.code);
         }
 
-        Ok(search_resp.data
+        // 过滤掉 bvid 为空的结果
+        let results = search_resp.data
             .and_then(|d| d.result)
-            .unwrap_or_default())
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|v| !v.bvid.is_empty())
+            .collect();
+
+        Ok(results)
     }
 
     /// 获取视频详细信息（包含合集信息）
