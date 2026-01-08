@@ -376,6 +376,7 @@ fn spawn_ffmpeg(ffmpeg_path: &PathBuf, stream_url: &str) -> anyhow::Result<Child
     // Windows: 隐藏控制台窗口
     #[cfg(target_os = "windows")]
     {
+        #[allow(unused_imports)]
         use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x08000000;
         cmd.creation_flags(CREATE_NO_WINDOW);
@@ -626,91 +627,6 @@ async fn handle_bilibili_stream_with_callback(
         .unwrap()
 }
 
-/// 处理 B站音频流
-async fn handle_bilibili_stream(
-    state: Arc<ServerState>,
-    name: &str,
-    audio_url: &str,
-) -> Response {
-    log::info!("   📡 B站音频地址: {}...", &audio_url[..audio_url.len().min(80)]);
-
-    // 启动 FFmpeg 进程 - B站音频需要特殊处理
-    let ffmpeg_path = &state.ffmpeg_path;
-
-    let mut child = match spawn_ffmpeg_for_bilibili(ffmpeg_path, audio_url) {
-        Ok(child) => child,
-        Err(e) => {
-            log::error!("   ❌ 启动 FFmpeg 失败: {}", e);
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!("启动 FFmpeg 失败: {}", e),
-            )
-                .into_response();
-        }
-    };
-
-    // 记录活动进程
-    if let Some(pid) = child.id() {
-        state
-            .active_streams
-            .write()
-            .await
-            .insert("bilibili_test".to_string(), pid);
-    }
-
-    // 获取输出流
-    let stdout = child.stdout.take().expect("无法获取 stdout");
-
-    // 创建流式响应
-    let (tx, rx) = tokio::sync::mpsc::channel::<Result<Vec<u8>, std::io::Error>>(32);
-
-    // 在后台读取 FFmpeg 输出
-    let state_clone = state.clone();
-    let name_owned = name.to_string();
-    tokio::spawn(async move {
-        let mut reader = tokio::io::BufReader::new(stdout);
-        let mut buffer = [0u8; 4096];
-
-        loop {
-            match reader.read(&mut buffer).await {
-                Ok(0) => break, // EOF
-                Ok(n) => {
-                    if tx.send(Ok(buffer[..n].to_vec())).await.is_err() {
-                        break; // 接收端已关闭
-                    }
-                }
-                Err(e) => {
-                    log::error!("读取 FFmpeg 输出错误: {}", e);
-                    let _ = tx.send(Err(e)).await;
-                    break;
-                }
-            }
-        }
-
-        // 清理
-        let _ = child.kill().await;
-        state_clone
-            .active_streams
-            .write()
-            .await
-            .remove("bilibili_test");
-        log::info!("🔇 {} 流已关闭", name_owned);
-    });
-
-    // 构建响应
-    let stream = ReceiverStream::new(rx);
-    let body = Body::from_stream(stream);
-
-    Response::builder()
-        .header(header::CONTENT_TYPE, "audio/mpeg")
-        .header(header::TRANSFER_ENCODING, "chunked")
-        .header(header::CACHE_CONTROL, "no-cache")
-        .header(header::CONNECTION, "keep-alive")
-        .header("icy-name", urlencoding::encode(name).to_string())
-        .body(body)
-        .unwrap()
-}
-
 /// 启动 FFmpeg 转码进程 (B站音频专用)
 /// B站的 m4s 格式需要添加 User-Agent 和 Referer
 fn spawn_ffmpeg_for_bilibili(ffmpeg_path: &PathBuf, audio_url: &str) -> anyhow::Result<Child> {
@@ -763,6 +679,7 @@ fn spawn_ffmpeg_for_bilibili(ffmpeg_path: &PathBuf, audio_url: &str) -> anyhow::
     // Windows: 隐藏控制台窗口
     #[cfg(target_os = "windows")]
     {
+        #[allow(unused_imports)]
         use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x08000000;
         cmd.creation_flags(CREATE_NO_WINDOW);

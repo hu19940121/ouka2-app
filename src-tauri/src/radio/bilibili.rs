@@ -3,10 +3,10 @@
 //! 提供搜索B站视频并获取音频流URL的功能
 //! 支持合集连续播放
 
+#![allow(dead_code)]
+
 use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
-use tokio::sync::RwLock;
 
 /// B站 API 客户端
 pub struct BilibiliApi {
@@ -151,31 +151,6 @@ pub struct CurrentVideo {
     pub cid: u64,
 }
 
-/// 郭德纲电台播放状态
-pub struct GuodegangRadioState {
-    /// 当前播放的视频 BVID
-    pub current_bvid: Option<String>,
-    /// 是否正在播放
-    pub is_playing: bool,
-}
-
-impl Default for GuodegangRadioState {
-    fn default() -> Self {
-        Self {
-            current_bvid: None,
-            is_playing: false,
-        }
-    }
-}
-
-/// 全局电台状态
-pub type RadioState = Arc<RwLock<GuodegangRadioState>>;
-
-/// 创建新的电台状态
-pub fn new_radio_state() -> RadioState {
-    Arc::new(RwLock::new(GuodegangRadioState::default()))
-}
-
 impl BilibiliApi {
     pub fn new() -> Self {
         let client = reqwest::Client::builder()
@@ -257,7 +232,7 @@ impl BilibiliApi {
     }
 
     /// 获取视频详细信息（包含合集信息）
-    pub async fn get_video_info(&self, bvid: &str) -> anyhow::Result<VideoInfoData> {
+    async fn get_video_info(&self, bvid: &str) -> anyhow::Result<VideoInfoData> {
         let url = format!(
             "https://api.bilibili.com/x/web-interface/view?bvid={}",
             bvid
@@ -349,7 +324,7 @@ impl BilibiliApi {
     }
 
     /// 获取推荐视频列表
-    pub async fn get_related_videos(&self, bvid: &str) -> anyhow::Result<Vec<RecommendVideo>> {
+    async fn get_related_videos(&self, bvid: &str) -> anyhow::Result<Vec<RecommendVideo>> {
         let url = format!(
             "https://api.bilibili.com/x/web-interface/archive/related?bvid={}",
             bvid

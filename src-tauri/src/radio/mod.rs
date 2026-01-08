@@ -7,7 +7,6 @@ pub mod models;
 pub mod sii;
 pub mod stream;
 
-pub use bilibili::BilibiliApi;
 pub use crawler::{Crawler, get_province_stats};
 pub use models::*;
 pub use sii::SiiGenerator;
