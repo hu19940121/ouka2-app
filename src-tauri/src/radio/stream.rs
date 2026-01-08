@@ -168,9 +168,36 @@ impl StreamServer {
     }
 
     /// 停止服务器
-    pub fn stop(&mut self) {
+    pub async fn stop(&mut self) {
         if let Some(tx) = self.shutdown_tx.take() {
+            // 先杀死所有活动的 FFmpeg 进程
+            let active_streams = self.state.active_streams.read().await;
+            for (station_id, pid) in active_streams.iter() {
+                log::info!("   🔪 终止流: {} (PID: {})", station_id, pid);
+                #[cfg(target_os = "windows")]
+                {
+                    let _ = std::process::Command::new("taskkill")
+                        .args(["/F", "/PID", &pid.to_string()])
+                        .output();
+                }
+                #[cfg(not(target_os = "windows"))]
+                {
+                    let _ = std::process::Command::new("kill")
+                        .args(["-9", &pid.to_string()])
+                        .output();
+                }
+            }
+            drop(active_streams);
+            
+            // 清空活动流列表
+            self.state.active_streams.write().await.clear();
+            
+            // 发送停止信号
             let _ = tx.send(());
+            
+            // 等待一小段时间让端口释放
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+            
             self.is_running = false;
             log::info!("🛑 流媒体服务器已停止");
         }

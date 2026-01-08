@@ -38,7 +38,7 @@ pub async fn start_server(state: State<'_, Arc<Mutex<AppState>>>) -> Result<(), 
 #[tauri::command]
 pub async fn stop_server(state: State<'_, Arc<Mutex<AppState>>>) -> Result<(), String> {
     let mut state = state.lock().await;
-    state.server.stop();
+    state.server.stop().await;
     log::info!("🛑 服务器已停止");
     Ok(())
 }
