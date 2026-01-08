@@ -180,14 +180,33 @@ impl BilibiliApi {
     pub fn new() -> Self {
         let client = reqwest::Client::builder()
             .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+            .timeout(std::time::Duration::from_secs(10))
             .build()
             .unwrap_or_default();
         
         Self { client }
     }
 
-    /// 搜索视频
+    /// 搜索视频（带重试）
     pub async fn search_videos(&self, keyword: &str, page: u32) -> anyhow::Result<Vec<SearchVideoResult>> {
+        // 最多重试 3 次
+        let mut last_error = None;
+        for attempt in 0..3 {
+            match self.search_videos_once(keyword, page).await {
+                Ok(results) => return Ok(results),
+                Err(e) => {
+                    log::warn!("   搜索尝试 {} 失败: {}", attempt + 1, e);
+                    last_error = Some(e);
+                    // 短暂延迟后重试
+                    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+                }
+            }
+        }
+        Err(last_error.unwrap())
+    }
+
+    /// 单次搜索视频
+    async fn search_videos_once(&self, keyword: &str, page: u32) -> anyhow::Result<Vec<SearchVideoResult>> {
         let url = format!(
             "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword={}&page={}&duration=4",
             urlencoding::encode(keyword),
@@ -197,17 +216,27 @@ impl BilibiliApi {
         let resp = self.client
             .get(&url)
             .header("Referer", "https://www.bilibili.com/")
+            .header("Origin", "https://www.bilibili.com")
+            .header("Accept", "application/json, text/plain, */*")
+            .header("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
             .send()
             .await?;
 
+        let status = resp.status();
         let text = resp.text().await?;
+        
+        // 检查是否是空响应
+        if text.is_empty() {
+            anyhow::bail!("B站返回空响应，状态码: {}", status);
+        }
         
         // 尝试解析 JSON
         let search_resp: SearchResponse = match serde_json::from_str(&text) {
             Ok(r) => r,
             Err(e) => {
                 log::error!("   解析搜索结果失败: {}", e);
-                log::debug!("   原始响应: {}", &text[..text.len().min(500)]);
+                // 输出前 200 个字符帮助调试
+                log::error!("   响应内容: {}", &text[..text.len().min(200)]);
                 anyhow::bail!("解析搜索结果失败: {}", e);
             }
         };
