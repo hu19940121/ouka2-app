@@ -126,7 +126,7 @@ onMounted(async () => {
         <h1>欧卡2中国电台</h1>
       </div>
       <div class="header-right">
-        <span class="version">v0.1.0</span>
+        <span class="version">v0.1.1</span>
       </div>
     </header>
 
@@ -375,6 +375,7 @@ body {
   grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
   gap: 1rem;
   padding-right: 0.5rem;
+  align-content: start;
 }
 
 .station-list::-webkit-scrollbar {

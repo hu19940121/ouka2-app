@@ -46,6 +46,19 @@ pub async fn crawl_stations(
 
     log::info!("✅ 爬取完成，共 {} 个电台", stations.len());
 
+    // 添加郭德纲电台
+    let mut stations = stations;
+    stations.push(Station {
+        id: "guodegang_radio".to_string(),
+        name: "郭德纲电台".to_string(),
+        subtitle: "随机播放B站郭德纲相声".to_string(),
+        image: "https://i0.hdslb.com/bfs/face/a6a0bb6eb6a52b96f5ea0e5b6a0a6ff3d74e55cb.jpg".to_string(),
+        province: "bilibili".to_string(),
+        play_url_low: None,
+        mp3_play_url_low: None,
+        mp3_play_url_high: Some("http://127.0.0.1:3000/stream/guodegang_radio".to_string()),
+    });
+
     // 重新获取锁来更新状态
     {
         let s = state.lock().await;
