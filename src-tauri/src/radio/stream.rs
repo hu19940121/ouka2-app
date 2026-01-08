@@ -376,7 +376,7 @@ async fn handle_stations_api(State(state): State<Arc<ServerState>>) -> impl Into
     // 添加郭德纲电台
     list.push(Station {
         id: "guodegang_radio".to_string(),
-        name: "🎙️ 郭德纲电台".to_string(),
+        name: "郭德纲电台".to_string(),
         subtitle: "随机播放B站郭德纲相声".to_string(),
         image: "https://i0.hdslb.com/bfs/face/a6a0bb6eb6a52b96f5ea0e5b6a0a6ff3d74e55cb.jpg".to_string(),
         province: "bilibili".to_string(),
@@ -400,7 +400,7 @@ async fn handle_guodegang_radio(state: Arc<ServerState>) -> Response {
     
     let video = if let Some(bvid) = current_bvid {
         // 有当前播放状态，尝试获取下一个视频
-        log::info!("🎙️ 郭德纲电台 - 获取下一个节目 (当前: {})", bvid);
+        log::info!("郭德纲电台 - 获取下一个节目 (当前: {})", bvid);
         
         match bilibili_api.get_next_video(&bvid).await {
             Ok(video) => {
@@ -421,7 +421,7 @@ async fn handle_guodegang_radio(state: Arc<ServerState>) -> Response {
         }
     } else {
         // 没有播放状态，首次随机搜索
-        log::info!("🎙️ 郭德纲电台 - 首次随机搜索节目...");
+        log::info!("郭德纲电台 - 首次随机搜索节目...");
         
         match bilibili_api.get_random_audio("郭德纲 相声").await {
             Ok(video) => {

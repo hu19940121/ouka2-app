@@ -78,7 +78,7 @@ pub async fn load_saved_stations(
     // 添加郭德纲电台（B站随机相声）
     stations.push(Station {
         id: "guodegang_radio".to_string(),
-        name: "🎙️ 郭德纲电台".to_string(),
+        name: "郭德纲电台".to_string(),
         subtitle: "随机播放B站郭德纲相声".to_string(),
         image: "https://i0.hdslb.com/bfs/face/a6a0bb6eb6a52b96f5ea0e5b6a0a6ff3d74e55cb.jpg".to_string(),
         province: "bilibili".to_string(),
