@@ -29,15 +29,23 @@
 
 ### 系统要求
 
-- Windows 10 / 11 (64位)
+- **Windows**: Windows 10 / 11 (64位)
+- **macOS**: macOS 11.0+ (Apple Silicon / M 芯片)
 - 欧洲卡车模拟器 2 (Euro Truck Simulator 2)
 
 ### 下载
 
 前往 [Releases](https://github.com/hu19940121/ouka2-app/releases) 页面下载最新版本：
 
+**Windows:**
 - **推荐**: `ETS2-China-Radio_x.x.x_x64-setup.exe` - NSIS 安装包，带卸载程序
-<!-- - 或者: `ETS2-China-Radio_x.x.x_x64_en-US.msi` - MSI 安装包 -->
+
+**macOS (Apple Silicon):**
+- `ETS2-China-Radio_x.x.x_aarch64.dmg` - Apple Silicon (M1/M2/M3/M4) 安装包
+
+> ⚠️ **macOS 用户注意**: 由于应用未经 Apple 签名，首次打开时需要:
+> 1. 右键点击应用，选择「打开」
+> 2. 在弹出的对话框中再次点击「打开」
 
 ### 安装步骤
 
@@ -83,8 +91,14 @@
 
 点击底部状态栏的 **「📥 安装到欧卡2」** 按钮。应用会自动在以下位置生成 `live_streams.sii` 配置文件：
 
+**Windows:**
 ```
 C:\Users\你的用户名\Documents\Euro Truck Simulator 2\live_streams.sii
+```
+
+**macOS:**
+```
+~/Library/Application Support/Euro Truck Simulator 2/live_streams.sii
 ```
 
 ---
@@ -138,7 +152,8 @@ A: 点击「刷新数据」按钮即可获取最新的电台列表。
 
 ### Q: 卸载后如何清理游戏配置？
 A: 删除以下文件即可：
-`C:\Users\你的用户名\Documents\Euro Truck Simulator 2\live_streams.sii`
+- **Windows**: `C:\Users\你的用户名\Documents\Euro Truck Simulator 2\live_streams.sii`
+- **macOS**: `~/Library/Application Support/Euro Truck Simulator 2/live_streams.sii`
 
 ---
 

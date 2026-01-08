@@ -93,22 +93,53 @@ live_stream_def : .live_streams {{
     pub fn detect_ets2_paths() -> Vec<PathBuf> {
         let mut paths = Vec::new();
 
-        // 标准文档目录
-        if let Some(docs_dir) = dirs::document_dir() {
-            let ets2_dir = docs_dir.join("Euro Truck Simulator 2");
-            if ets2_dir.exists() {
-                paths.push(ets2_dir);
+        #[cfg(target_os = "macos")]
+        {
+            // macOS: ETS2 使用 ~/Library/Application Support/Euro Truck Simulator 2
+            if let Some(home_dir) = dirs::home_dir() {
+                let ets2_dir = home_dir
+                    .join("Library")
+                    .join("Application Support")
+                    .join("Euro Truck Simulator 2");
+                if ets2_dir.exists() {
+                    paths.push(ets2_dir);
+                }
             }
         }
 
-        // 也检查 OneDrive 文档目录
-        if let Ok(user_profile) = std::env::var("USERPROFILE") {
-            let onedrive_ets2 = PathBuf::from(&user_profile)
-                .join("OneDrive")
-                .join("Documents")
-                .join("Euro Truck Simulator 2");
-            if onedrive_ets2.exists() && !paths.contains(&onedrive_ets2) {
-                paths.push(onedrive_ets2);
+        #[cfg(target_os = "windows")]
+        {
+            // Windows: 标准文档目录
+            if let Some(docs_dir) = dirs::document_dir() {
+                let ets2_dir = docs_dir.join("Euro Truck Simulator 2");
+                if ets2_dir.exists() {
+                    paths.push(ets2_dir);
+                }
+            }
+
+            // 也检查 OneDrive 文档目录
+            if let Ok(user_profile) = std::env::var("USERPROFILE") {
+                let onedrive_ets2 = PathBuf::from(&user_profile)
+                    .join("OneDrive")
+                    .join("Documents")
+                    .join("Euro Truck Simulator 2");
+                if onedrive_ets2.exists() && !paths.contains(&onedrive_ets2) {
+                    paths.push(onedrive_ets2);
+                }
+            }
+        }
+
+        #[cfg(target_os = "linux")]
+        {
+            // Linux: ~/.local/share/Euro Truck Simulator 2
+            if let Some(home_dir) = dirs::home_dir() {
+                let ets2_dir = home_dir
+                    .join(".local")
+                    .join("share")
+                    .join("Euro Truck Simulator 2");
+                if ets2_dir.exists() {
+                    paths.push(ets2_dir);
+                }
             }
         }
 

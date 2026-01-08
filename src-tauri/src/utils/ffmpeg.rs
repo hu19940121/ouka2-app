@@ -10,15 +10,21 @@ impl FFmpegManager {
     /// 检测系统中的 FFmpeg
     ///
     /// 按以下顺序查找：
-    /// 1. 应用资源目录中的 FFmpeg (binaries/ffmpeg.exe)
+    /// 1. 应用资源目录中的 FFmpeg (binaries/ffmpeg 或 binaries/ffmpeg.exe)
     /// 2. 系统 PATH 中的 FFmpeg
     pub fn detect_ffmpeg(app_resource_dir: Option<&PathBuf>) -> Option<PathBuf> {
+        // 根据目标系统确定 FFmpeg 二进制文件名
+        #[cfg(target_os = "windows")]
+        let ffmpeg_binary = "ffmpeg.exe";
+        #[cfg(not(target_os = "windows"))]
+        let ffmpeg_binary = "ffmpeg";
+
         // 1. 检查应用资源目录 (Tauri 会将 binaries 目录打包到 resources)
         if let Some(resource_dir) = app_resource_dir {
             // Tauri 2 资源路径结构
             let bundled_paths = [
-                resource_dir.join("binaries").join("ffmpeg.exe"),
-                resource_dir.join("ffmpeg.exe"),
+                resource_dir.join("binaries").join(ffmpeg_binary),
+                resource_dir.join(ffmpeg_binary),
             ];
             
             for bundled_ffmpeg in bundled_paths {

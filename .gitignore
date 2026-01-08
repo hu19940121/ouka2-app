@@ -54,4 +54,4 @@ coverage/
 # Temporary folders
 tmp/
 temp/
-jimeng-*.md
+src-tauri/binaries/
