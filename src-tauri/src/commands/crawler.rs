@@ -73,7 +73,19 @@ pub async fn load_saved_stations(
 ) -> Result<Vec<Station>, String> {
     let state = state.lock().await;
 
-    let stations = state.crawler.load_stations().map_err(|e| e.to_string())?;
+    let mut stations = state.crawler.load_stations().map_err(|e| e.to_string())?;
+
+    // 添加 B站测试频道
+    stations.push(Station {
+        id: "bilibili_test".to_string(),
+        name: "🎬 B站测试频道".to_string(),
+        subtitle: "测试 B站视频音频播放".to_string(),
+        image: "https://www.bilibili.com/favicon.ico".to_string(),
+        province: "test".to_string(),
+        play_url_low: None,
+        mp3_play_url_low: None,
+        mp3_play_url_high: Some("http://127.0.0.1:3000/stream/bilibili_test".to_string()),
+    });
 
     // 更新缓存
     state.crawler.set_stations(stations.clone()).await;
