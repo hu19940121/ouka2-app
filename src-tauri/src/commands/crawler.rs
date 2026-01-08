@@ -75,16 +75,16 @@ pub async fn load_saved_stations(
 
     let mut stations = state.crawler.load_stations().map_err(|e| e.to_string())?;
 
-    // 添加 B站测试频道
+    // 添加郭德纲电台（B站随机相声）
     stations.push(Station {
-        id: "bilibili_test".to_string(),
-        name: "🎬 B站测试频道".to_string(),
-        subtitle: "测试 B站视频音频播放".to_string(),
-        image: "https://www.bilibili.com/favicon.ico".to_string(),
-        province: "test".to_string(),
+        id: "guodegang_radio".to_string(),
+        name: "🎙️ 郭德纲电台".to_string(),
+        subtitle: "随机播放B站郭德纲相声".to_string(),
+        image: "https://i0.hdslb.com/bfs/face/a6a0bb6eb6a52b96f5ea0e5b6a0a6ff3d74e55cb.jpg".to_string(),
+        province: "bilibili".to_string(),
         play_url_low: None,
         mp3_play_url_low: None,
-        mp3_play_url_high: Some("http://127.0.0.1:3000/stream/bilibili_test".to_string()),
+        mp3_play_url_high: Some("http://127.0.0.1:3000/stream/guodegang_radio".to_string()),
     });
 
     // 更新缓存

@@ -2743,6 +2743,7 @@ dependencies = [
  "env_logger",
  "log",
  "md5",
+ "rand 0.8.5",
  "reqwest",
  "rusqlite",
  "serde",

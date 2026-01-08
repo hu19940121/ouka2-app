@@ -56,3 +56,6 @@ tokio-stream = "0.1"
 
 # URL 编码
 urlencoding = "2"
+
+# 随机数
+rand = "0.8"

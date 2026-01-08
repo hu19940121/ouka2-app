@@ -146,18 +146,30 @@ impl StreamServer {
     }
 }
 
-/// B站测试音频 URL (写死用于测试)
-const BILIBILI_TEST_AUDIO_URL: &str = "https://xy111x2x118x34xy.mcdn.bilivideo.cn:8082/v1/resource/35262169982-1-30232.m4s?agrr=0&build=0&buvid=313FEBD1-FE42-EC1F-B185-568B724F7DD238598infoc&bvc=vod&bw=71972&deadline=1767885032&dl=0&e=ig8euxZM2rNcNbdlhoNvNC8BqJIzNbfqXBvEqxTEto8BTrNvN0GvT90W5JZMkX_YN0MvXg8gNEV4NC8xNEV4N03eN0B5tZlqNxTEto8BTrNvNeZVuJ10Kj_g2UB02J0mN0B5tZlqNCNEto8BTrNvNC7MTX502C8f2jmMQJ6mqF2fka1mqx6gqj0eN0B599M%3D&f=u_0_0&gen=playurlv3&mid=340568785&nbs=1&nettype=0&og=cos&oi=1879754545&orderid=0%2C3&os=cosbv&platform=pc&qn_dyeid=e631e7824ae7ae1700190638695facc8&sign=4f8adc&traceid=trLjrErAiDpMdx_0_e_N&uipk=5&uparams=e%2Ctrid%2Cdeadline%2Cuipk%2Coi%2Cnbs%2Cos%2Cplatform%2Cmid%2Cgen%2Cog&upsig=8f4384088f36ec283468b7cd1ae2ff46";
+use crate::radio::bilibili::BilibiliApi;
+
 
 /// 处理流媒体请求
 async fn handle_stream(
     Path(station_id): Path<String>,
     State(state): State<Arc<ServerState>>,
 ) -> Response {
-    // 🎬 B站测试频道：使用写死的音频 URL
-    if station_id == "bilibili_test" {
-        log::info!("🎬 B站测试频道 - 使用写死的音频 URL");
-        return handle_bilibili_stream(state, "B站测试频道", BILIBILI_TEST_AUDIO_URL).await;
+    // 🎙️ 郭德纲电台：动态搜索B站视频并随机播放
+    if station_id == "guodegang_radio" {
+        log::info!("🎙️ 郭德纲电台 - 正在搜索节目...");
+        
+        let bilibili_api = BilibiliApi::new();
+        match bilibili_api.get_random_audio("郭德纲 相声").await {
+            Ok(video) => {
+                log::info!("   🎲 选中: {} - {}", video.author, video.title);
+                let title = format!("郭德纲电台: {}", video.title);
+                return handle_bilibili_stream(state, &title, &video.audio_url).await;
+            }
+            Err(e) => {
+                log::error!("   ❌ 获取节目失败: {}", e);
+                return (StatusCode::INTERNAL_SERVER_ERROR, format!("获取节目失败: {}", e)).into_response();
+            }
+        }
     }
 
     // 查找电台
@@ -359,16 +371,16 @@ async fn handle_stations_api(State(state): State<Arc<ServerState>>) -> impl Into
         })
         .collect();
     
-    // 添加 B站测试频道
+    // 添加郭德纲电台
     list.push(Station {
-        id: "bilibili_test".to_string(),
-        name: "🎬 B站测试频道".to_string(),
-        subtitle: "测试 B站视频音频播放".to_string(),
-        image: "https://www.bilibili.com/favicon.ico".to_string(),
-        province: "test".to_string(),
+        id: "guodegang_radio".to_string(),
+        name: "🎙️ 郭德纲电台".to_string(),
+        subtitle: "随机播放B站郭德纲相声".to_string(),
+        image: "https://i0.hdslb.com/bfs/face/a6a0bb6eb6a52b96f5ea0e5b6a0a6ff3d74e55cb.jpg".to_string(),
+        province: "bilibili".to_string(),
         play_url_low: None,
         mp3_play_url_low: None,
-        mp3_play_url_high: Some(format!("http://127.0.0.1:{}/stream/bilibili_test", state.port)),
+        mp3_play_url_high: Some(format!("http://127.0.0.1:{}/stream/guodegang_radio", state.port)),
     });
     
     axum::Json(list)
