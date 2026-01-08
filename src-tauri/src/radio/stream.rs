@@ -148,6 +148,12 @@ impl StreamServer {
 
 use crate::radio::bilibili::BilibiliApi;
 
+/// 郭德纲电台当前播放的 BVID（用于续播）
+static GUODEGANG_CURRENT_BVID: std::sync::OnceLock<tokio::sync::RwLock<Option<String>>> = std::sync::OnceLock::new();
+
+fn get_current_bvid_lock() -> &'static tokio::sync::RwLock<Option<String>> {
+    GUODEGANG_CURRENT_BVID.get_or_init(|| tokio::sync::RwLock::new(None))
+}
 
 /// 处理流媒体请求
 async fn handle_stream(
@@ -156,19 +162,15 @@ async fn handle_stream(
 ) -> Response {
     // 🎙️ 郭德纲电台：动态搜索B站视频并随机播放
     if station_id == "guodegang_radio" {
-        log::info!("🎙️ 郭德纲电台 - 正在搜索节目...");
-        
-        let bilibili_api = BilibiliApi::new();
-        match bilibili_api.get_random_audio("郭德纲 相声").await {
-            Ok(video) => {
-                log::info!("   🎲 选中: {} - {}", video.author, video.title);
-                let title = format!("郭德纲电台: {}", video.title);
-                return handle_bilibili_stream(state, &title, &video.audio_url).await;
-            }
-            Err(e) => {
-                log::error!("   ❌ 获取节目失败: {}", e);
-                return (StatusCode::INTERNAL_SERVER_ERROR, format!("获取节目失败: {}", e)).into_response();
-            }
+        return handle_guodegang_radio(state).await;
+    }
+    
+    // 如果切换到其他频道，清除郭德纲电台状态
+    {
+        let mut current_bvid = get_current_bvid_lock().write().await;
+        if current_bvid.is_some() {
+            log::info!("🔄 切换频道，清除郭德纲电台状态");
+            *current_bvid = None;
         }
     }
 
@@ -384,6 +386,153 @@ async fn handle_stations_api(State(state): State<Arc<ServerState>>) -> impl Into
     });
     
     axum::Json(list)
+}
+
+/// 处理郭德纲电台请求
+async fn handle_guodegang_radio(state: Arc<ServerState>) -> Response {
+    let bilibili_api = BilibiliApi::new();
+    
+    // 检查是否有正在播放的状态（用于续播）
+    let current_bvid = {
+        let lock = get_current_bvid_lock().read().await;
+        lock.clone()
+    };
+    
+    let video = if let Some(bvid) = current_bvid {
+        // 有当前播放状态，尝试获取下一个视频
+        log::info!("🎙️ 郭德纲电台 - 获取下一个节目 (当前: {})", bvid);
+        
+        match bilibili_api.get_next_video(&bvid).await {
+            Ok(video) => {
+                log::info!("   ➡️ 下一个: {} - {}", video.author, video.title);
+                video
+            }
+            Err(e) => {
+                log::warn!("   ⚠️ 获取下一个失败: {}，重新随机搜索", e);
+                // 失败时重新随机搜索
+                match bilibili_api.get_random_audio("郭德纲 相声").await {
+                    Ok(v) => v,
+                    Err(e) => {
+                        log::error!("   ❌ 随机搜索也失败了: {}", e);
+                        return (StatusCode::INTERNAL_SERVER_ERROR, format!("获取节目失败: {}", e)).into_response();
+                    }
+                }
+            }
+        }
+    } else {
+        // 没有播放状态，首次随机搜索
+        log::info!("🎙️ 郭德纲电台 - 首次随机搜索节目...");
+        
+        match bilibili_api.get_random_audio("郭德纲 相声").await {
+            Ok(video) => {
+                log::info!("   🎲 随机选中: {} - {}", video.author, video.title);
+                video
+            }
+            Err(e) => {
+                log::error!("   ❌ 获取节目失败: {}", e);
+                return (StatusCode::INTERNAL_SERVER_ERROR, format!("获取节目失败: {}", e)).into_response();
+            }
+        }
+    };
+    
+    // 更新当前播放状态
+    {
+        let mut lock = get_current_bvid_lock().write().await;
+        *lock = Some(video.bvid.clone());
+    }
+    
+    let title = format!("郭德纲电台: {}", video.title);
+    handle_bilibili_stream_with_callback(state, &title, &video.audio_url, &video.bvid).await
+}
+
+/// 处理 B站音频流（带回调，用于续播）
+async fn handle_bilibili_stream_with_callback(
+    state: Arc<ServerState>,
+    name: &str,
+    audio_url: &str,
+    bvid: &str,
+) -> Response {
+    log::info!("   📡 B站音频地址: {}...", &audio_url[..audio_url.len().min(80)]);
+
+    // 启动 FFmpeg 进程 - B站音频需要特殊处理
+    let ffmpeg_path = &state.ffmpeg_path;
+
+    let mut child = match spawn_ffmpeg_for_bilibili(ffmpeg_path, audio_url) {
+        Ok(child) => child,
+        Err(e) => {
+            log::error!("   ❌ 启动 FFmpeg 失败: {}", e);
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("启动 FFmpeg 失败: {}", e),
+            )
+                .into_response();
+        }
+    };
+
+    // 记录活动进程
+    if let Some(pid) = child.id() {
+        state
+            .active_streams
+            .write()
+            .await
+            .insert("guodegang_radio".to_string(), pid);
+    }
+
+    // 获取输出流
+    let stdout = child.stdout.take().expect("无法获取 stdout");
+
+    // 创建流式响应
+    let (tx, rx) = tokio::sync::mpsc::channel::<Result<Vec<u8>, std::io::Error>>(32);
+
+    // 在后台读取 FFmpeg 输出
+    let state_clone = state.clone();
+    let name_owned = name.to_string();
+    let bvid_owned = bvid.to_string();
+    tokio::spawn(async move {
+        let mut reader = tokio::io::BufReader::new(stdout);
+        let mut buffer = [0u8; 4096];
+
+        loop {
+            match reader.read(&mut buffer).await {
+                Ok(0) => break, // EOF
+                Ok(n) => {
+                    if tx.send(Ok(buffer[..n].to_vec())).await.is_err() {
+                        break; // 接收端已关闭
+                    }
+                }
+                Err(e) => {
+                    log::error!("读取 FFmpeg 输出错误: {}", e);
+                    let _ = tx.send(Err(e)).await;
+                    break;
+                }
+            }
+        }
+
+        // 清理
+        let _ = child.kill().await;
+        state_clone
+            .active_streams
+            .write()
+            .await
+            .remove("guodegang_radio");
+        log::info!("🔇 {} 流已关闭 (BVID: {})", name_owned, bvid_owned);
+        
+        // 注意：这里不主动触发下一个，因为客户端会重新请求
+        // 当前 BVID 状态保留，下次请求时会自动获取下一个
+    });
+
+    // 构建响应
+    let stream = ReceiverStream::new(rx);
+    let body = Body::from_stream(stream);
+
+    Response::builder()
+        .header(header::CONTENT_TYPE, "audio/mpeg")
+        .header(header::TRANSFER_ENCODING, "chunked")
+        .header(header::CACHE_CONTROL, "no-cache")
+        .header(header::CONNECTION, "keep-alive")
+        .header("icy-name", urlencoding::encode(name).to_string())
+        .body(body)
+        .unwrap()
 }
 
 /// 处理 B站音频流
