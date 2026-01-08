@@ -1,6 +1,6 @@
 [package]
 name = "ouka2-app"
-version = "0.1.0"
+version = "0.1.1"
 description = "欧卡2中国电台桌面应用 - 将云听电台转换为欧卡2可用格式"
 authors = ["you"]
 edition = "2021"
