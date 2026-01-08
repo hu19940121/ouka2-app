@@ -29,8 +29,8 @@ pub struct ServerState {
     pub stations: RwLock<HashMap<String, Station>>,
     /// 活动的 FFmpeg 进程
     pub active_streams: RwLock<HashMap<String, u32>>, // station_id -> process_id
-    /// 服务器端口
-    pub port: u16,
+    /// 服务器端口（可动态更新）
+    pub port: RwLock<u16>,
     /// FFmpeg 路径
     pub ffmpeg_path: PathBuf,
     /// API 客户端（用于刷新流地址）
@@ -42,7 +42,7 @@ impl ServerState {
         Self {
             stations: RwLock::new(HashMap::new()),
             active_streams: RwLock::new(HashMap::new()),
-            port,
+            port: RwLock::new(port),
             ffmpeg_path,
             api: RadioApi::new(),
         }
@@ -61,7 +61,7 @@ impl ServerState {
     pub async fn get_status(&self) -> ServerStatus {
         ServerStatus {
             running: true,
-            port: self.port,
+            port: *self.port.read().await,
             active_streams: self.active_streams.read().await.len(),
             total_stations: self.stations.read().await.len(),
         }
@@ -107,7 +107,43 @@ impl StreamServer {
         self.shutdown_tx = Some(tx);
 
         let state = self.state.clone();
-        let port = self.port;
+        
+        // 尝试绑定端口，如果被占用就自动切换
+        let mut port = self.port;
+        let max_attempts = 10; // 最多尝试 10 个端口
+        let mut listener = None;
+        
+        for attempt in 0..max_attempts {
+            let addr = std::net::SocketAddr::from(([127, 0, 0, 1], port));
+            match tokio::net::TcpListener::bind(addr).await {
+                Ok(l) => {
+                    if attempt > 0 {
+                        log::info!("📌 端口 {} 被占用，自动切换到端口 {}", self.port, port);
+                    }
+                    listener = Some(l);
+                    break;
+                }
+                Err(e) => {
+                    log::warn!("⚠️ 端口 {} 不可用: {}", port, e);
+                    port += 1;
+                }
+            }
+        }
+        
+        let listener = listener.ok_or_else(|| {
+            anyhow::anyhow!("无法找到可用端口 (尝试了 {} 到 {})", self.port, self.port + max_attempts as u16 - 1)
+        })?;
+        
+        // 更新实际使用的端口
+        self.port = port;
+        
+        // 同时更新 state 中的端口
+        {
+            let mut state_port = self.state.port.write().await;
+            *state_port = port;
+        }
+        
+        log::info!("🚀 流媒体服务器启动: http://127.0.0.1:{}", port);
 
         // 构建路由
         let app = Router::new()
@@ -116,11 +152,6 @@ impl StreamServer {
             .route("/api/stations", get(handle_stations_api))
             .layer(CorsLayer::new().allow_origin(Any).allow_methods(Any))
             .with_state(state);
-
-        let addr = std::net::SocketAddr::from(([127, 0, 0, 1], port));
-        log::info!("🚀 流媒体服务器启动: http://{}", addr);
-
-        let listener = tokio::net::TcpListener::bind(addr).await?;
 
         // 在后台运行服务器
         tokio::spawn(async move {
@@ -363,12 +394,13 @@ async fn handle_health(State(state): State<Arc<ServerState>>) -> impl IntoRespon
 /// 电台列表 API
 async fn handle_stations_api(State(state): State<Arc<ServerState>>) -> impl IntoResponse {
     let stations = state.stations.read().await;
+    let port = *state.port.read().await;
     let mut list: Vec<_> = stations
         .values()
         .map(|s| {
             let mut s = s.clone();
             // 添加本地流地址
-            s.mp3_play_url_high = Some(format!("http://127.0.0.1:{}/stream/{}", state.port, s.id));
+            s.mp3_play_url_high = Some(format!("http://127.0.0.1:{}/stream/{}", port, s.id));
             s
         })
         .collect();
@@ -382,7 +414,7 @@ async fn handle_stations_api(State(state): State<Arc<ServerState>>) -> impl Into
         province: "bilibili".to_string(),
         play_url_low: None,
         mp3_play_url_low: None,
-        mp3_play_url_high: Some(format!("http://127.0.0.1:{}/stream/guodegang_radio", state.port)),
+        mp3_play_url_high: Some(format!("http://127.0.0.1:{}/stream/guodegang_radio", port)),
     });
     
     axum::Json(list)

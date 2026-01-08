@@ -51,7 +51,7 @@ pub async fn get_server_status(
     let state = state.lock().await;
     let is_running = state.server.is_running();
     let server_state = state.server.state();
-    let port = server_state.port;
+    let port = *server_state.port.read().await;
     let active_streams = server_state.active_streams.read().await.len();
     let total_stations = server_state.stations.read().await.len();
     
