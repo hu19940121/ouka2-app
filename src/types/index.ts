@@ -8,6 +8,7 @@ export interface Station {
     play_url_low?: string
     mp3_play_url_low?: string
     mp3_play_url_high?: string
+    is_custom?: boolean
 }
 
 // 服务器状态

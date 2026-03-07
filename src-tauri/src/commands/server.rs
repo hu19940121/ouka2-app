@@ -4,6 +4,7 @@ use std::sync::Arc;
 use tauri::State;
 use tokio::sync::Mutex;
 
+use super::custom::merge_custom_stations;
 use crate::radio::ServerStatus;
 use crate::AppState;
 
@@ -11,20 +12,26 @@ use crate::AppState;
 #[tauri::command]
 pub async fn start_server(state: State<'_, Arc<Mutex<AppState>>>) -> Result<(), String> {
     let mut state = state.lock().await;
-    
-    // 确保电台数据已加载到服务器
-    let stations = state.crawler.get_stations().await;
+
+    // 确保电台数据已加载到服务器，并合并自定义电台。
+    let mut stations = state.crawler.get_stations().await;
     if stations.is_empty() {
-        // 尝试从文件加载
         if let Ok(loaded) = state.crawler.load_stations() {
-            state.crawler.set_stations(loaded.clone()).await;
-            state.server.state().load_stations(loaded).await;
             log::info!("📻 从文件加载了电台数据");
+            state.crawler.set_stations(loaded.clone()).await;
+            stations = loaded;
         }
-    } else {
-        state.server.state().load_stations(stations).await;
     }
-    
+
+    let before_len = stations.len();
+    merge_custom_stations(state.crawler.data_dir(), &mut stations);
+    let custom_count = stations.len().saturating_sub(before_len);
+    if custom_count > 0 {
+        log::info!("📻 合并了 {} 个自定义电台", custom_count);
+    }
+
+    state.server.state().load_stations(stations).await;
+
     // 启动服务器
     state.server.start().await.map_err(|e| e.to_string())?;
     

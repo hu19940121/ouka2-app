@@ -10,6 +10,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   play: [station: Station]
   copy: [url: string]
+  delete: [station: Station]
 }>()
 
 const streamUrl = computed(() => {
@@ -18,6 +19,10 @@ const streamUrl = computed(() => {
 
 const handlePlay = () => {
   emit('play', props.station)
+}
+
+const handleDelete = () => {
+  emit('delete', props.station)
 }
 
 const handleCopy = async () => {
@@ -56,7 +61,7 @@ const getTypeIcon = (name: string) => {
     <div class="station-info">
       <h3 class="station-name">{{ station.name }}</h3>
       <p class="station-meta">
-        <span class="province-tag">{{ station.province }}</span>
+        <span :class="['province-tag', { 'custom-tag': station.is_custom }]">{{ station.province }}</span>
         <span v-if="station.subtitle" class="subtitle">{{ station.subtitle }}</span>
       </p>
     </div>
@@ -67,6 +72,9 @@ const getTypeIcon = (name: string) => {
       </button>
       <button class="btn btn-copy" @click="handleCopy" title="复制地址">
         <span>📋</span>
+      </button>
+      <button v-if="station.is_custom" class="btn btn-delete" @click="handleDelete" title="删除">
+        <span>🗑</span>
       </button>
     </div>
   </div>
@@ -133,20 +141,30 @@ const getTypeIcon = (name: string) => {
   align-items: center;
   gap: 0.5rem;
   margin: 0;
+  min-width: 0;
   font-size: 0.85rem;
   color: rgba(255, 255, 255, 0.6);
 }
 
 .province-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
   background: linear-gradient(135deg, #4facfe, #00f2fe);
   color: #000;
   padding: 0.15rem 0.5rem;
   border-radius: 4px;
   font-size: 0.75rem;
   font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
+  word-break: keep-all;
 }
 
 .subtitle {
+  flex: 1;
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -188,5 +206,19 @@ const getTypeIcon = (name: string) => {
 .btn-copy:hover {
   background: rgba(255, 255, 255, 0.2);
   transform: scale(1.1);
+}
+
+.btn-delete {
+  background: rgba(255, 100, 100, 0.15);
+  color: white;
+}
+
+.btn-delete:hover {
+  background: rgba(255, 100, 100, 0.4);
+  transform: scale(1.1);
+}
+
+.custom-tag {
+  background: linear-gradient(135deg, #f093fb, #f5576c) !important;
 }
 </style>

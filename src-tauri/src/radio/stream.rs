@@ -247,32 +247,43 @@ async fn handle_stream(
 
     log::info!("🎵 开始转发: {}", station.name);
 
-    // 刷新流地址
-    let stream_url = match state
-        .api
-        .refresh_stream_url(&station_id, &station.province)
-        .await
-    {
-        Ok(Some(url)) => {
-            log::info!("   ✅ 获取到新地址");
-            url
-        }
-        Ok(None) => {
-            // 使用缓存的地址
-            log::warn!("   ⚠️ 刷新失败，使用缓存地址");
-            match station.get_best_stream_url() {
-                Some(url) => url.to_string(),
-                None => {
-                    return (StatusCode::INTERNAL_SERVER_ERROR, "无可用流地址").into_response();
-                }
+    // 获取流地址：自定义电台直接用缓存地址，普通电台刷新
+    let stream_url = if station.is_custom {
+        log::info!("   📌 自定义电台，使用配置地址");
+        match station.get_best_stream_url() {
+            Some(url) => url.to_string(),
+            None => {
+                return (StatusCode::INTERNAL_SERVER_ERROR, "自定义电台无流地址").into_response();
             }
         }
-        Err(e) => {
-            log::error!("   ❌ 刷新流地址失败: {}", e);
-            match station.get_best_stream_url() {
-                Some(url) => url.to_string(),
-                None => {
-                    return (StatusCode::INTERNAL_SERVER_ERROR, "无可用流地址").into_response();
+    } else {
+        // 刷新流地址
+        match state
+            .api
+            .refresh_stream_url(&station_id, &station.province)
+            .await
+        {
+            Ok(Some(url)) => {
+                log::info!("   ✅ 获取到新地址");
+                url
+            }
+            Ok(None) => {
+                // 使用缓存的地址
+                log::warn!("   ⚠️ 刷新失败，使用缓存地址");
+                match station.get_best_stream_url() {
+                    Some(url) => url.to_string(),
+                    None => {
+                        return (StatusCode::INTERNAL_SERVER_ERROR, "无可用流地址").into_response();
+                    }
+                }
+            }
+            Err(e) => {
+                log::error!("   ❌ 刷新流地址失败: {}", e);
+                match station.get_best_stream_url() {
+                    Some(url) => url.to_string(),
+                    None => {
+                        return (StatusCode::INTERNAL_SERVER_ERROR, "无可用流地址").into_response();
+                    }
                 }
             }
         }
@@ -443,6 +454,7 @@ async fn handle_stations_api(State(state): State<Arc<ServerState>>) -> impl Into
         play_url_low: None,
         mp3_play_url_low: None,
         mp3_play_url_high: Some(format!("http://127.0.0.1:{}/stream/guodegang_radio", port)),
+        is_custom: false,
     });
     
     axum::Json(list)

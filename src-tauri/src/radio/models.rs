@@ -26,6 +26,9 @@ pub struct Station {
     /// 高质量MP3播放地址
     #[serde(default)]
     pub mp3_play_url_high: Option<String>,
+    /// 是否为用户自定义电台
+    #[serde(default)]
+    pub is_custom: bool,
 }
 
 impl Station {
@@ -128,6 +131,7 @@ impl RawStation {
             play_url_low: self.play_url_low,
             mp3_play_url_low: self.mp3_play_url_low,
             mp3_play_url_high: self.mp3_play_url_high,
+            is_custom: false,
         }
     }
 }

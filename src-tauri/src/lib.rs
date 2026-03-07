@@ -12,6 +12,7 @@ use tauri::Manager;
 use tokio::sync::Mutex;
 
 use commands::*;
+use commands::custom::merge_custom_stations;
 use radio::{Crawler, StreamServer};
 use utils::{FFmpegManager, check_ffmpeg};
 
@@ -67,7 +68,9 @@ pub fn run() {
                 if let Ok(stations) = state.crawler.load_stations() {
                     if !stations.is_empty() {
                         state.crawler.set_stations(stations.clone()).await;
-                        state.server.state().load_stations(stations).await;
+                        let mut stations_for_server = stations;
+                        merge_custom_stations(state.crawler.data_dir(), &mut stations_for_server);
+                        state.server.state().load_stations(stations_for_server).await;
                         log::info!("✅ 已加载保存的电台数据");
                     }
                 }
@@ -90,6 +93,11 @@ pub fn run() {
             install_sii_to_ets2,
             get_ets2_paths,
             get_app_data_dir,
+            // 自定义电台命令
+            add_custom_station,
+            remove_custom_station,
+            update_custom_station,
+            load_custom_stations,
             // 工具命令
             check_ffmpeg,
         ])

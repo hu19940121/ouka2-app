@@ -1,15 +1,18 @@
 {
   "name": "ouka2-app",
   "private": true,
-  "version": "0.1.1",
+  "version": "0.1.2",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
+    "sync-version": "node scripts/sync-version.cjs",
+    "pretauri": "npm run sync-version",
     "tauri": "tauri",
+    "pretauri:build": "npm run sync-version && npm run prepare-ffmpeg",
     "prepare-ffmpeg": "node scripts/download-ffmpeg.cjs",
-    "tauri:build": "npm run prepare-ffmpeg && tauri build"
+    "tauri:build": "tauri build"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",

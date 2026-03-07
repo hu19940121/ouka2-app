@@ -4,20 +4,29 @@ use std::sync::Arc;
 use tauri::State;
 use tokio::sync::Mutex;
 
+use super::custom::merge_custom_stations;
 use crate::radio::SiiGenerator;
 use crate::AppState;
+
+/// 合并自定义电台到电台列表
+async fn get_all_stations(state: &AppState) -> Vec<crate::radio::Station> {
+    let mut stations = state.crawler.get_stations().await;
+    merge_custom_stations(state.crawler.data_dir(), &mut stations);
+    stations
+}
 
 /// 生成 SII 配置文件
 #[tauri::command]
 pub async fn generate_sii(state: State<'_, Arc<Mutex<AppState>>>) -> Result<String, String> {
     let state = state.lock().await;
 
-    let stations = state.crawler.get_stations().await;
+    let stations = get_all_stations(&state).await;
     if stations.is_empty() {
         return Err("没有电台数据，请先爬取电台".to_string());
     }
 
-    let generator = SiiGenerator::default();
+    let port = *state.server.state().port.read().await;
+    let generator = SiiGenerator::new("127.0.0.1", port);
     let content = generator.generate(&stations);
 
     // 保存到数据目录
@@ -36,12 +45,13 @@ pub async fn install_sii_to_ets2(
 ) -> Result<String, String> {
     let state = state.lock().await;
 
-    let stations = state.crawler.get_stations().await;
+    let stations = get_all_stations(&state).await;
     if stations.is_empty() {
         return Err("没有电台数据，请先爬取电台".to_string());
     }
 
-    let generator = SiiGenerator::default();
+    let port = *state.server.state().port.read().await;
+    let generator = SiiGenerator::new("127.0.0.1", port);
     let content = generator.generate(&stations);
 
     let path = generator

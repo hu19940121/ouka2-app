@@ -4,6 +4,7 @@ use std::sync::Arc;
 use tauri::{AppHandle, Emitter, State};
 use tokio::sync::Mutex;
 
+use super::custom::merge_custom_stations;
 use crate::radio::{CrawlProgress, Station, get_province_stats};
 use crate::AppState;
 
@@ -57,13 +58,16 @@ pub async fn crawl_stations(
         play_url_low: None,
         mp3_play_url_low: None,
         mp3_play_url_high: Some("http://127.0.0.1:3000/stream/guodegang_radio".to_string()),
+        is_custom: false,
     });
 
     // 重新获取锁来更新状态
     {
         let s = state.lock().await;
         s.crawler.set_stations(stations.clone()).await;
-        s.server.state().load_stations(stations.clone()).await;
+        let mut stations_for_server = stations.clone();
+        merge_custom_stations(s.crawler.data_dir(), &mut stations_for_server);
+        s.server.state().load_stations(stations_for_server).await;
     }
 
     Ok(stations)
@@ -98,13 +102,16 @@ pub async fn load_saved_stations(
         play_url_low: None,
         mp3_play_url_low: None,
         mp3_play_url_high: Some("http://127.0.0.1:3000/stream/guodegang_radio".to_string()),
+        is_custom: false,
     });
 
     // 更新缓存
     state.crawler.set_stations(stations.clone()).await;
 
     // 更新服务器
-    state.server.state().load_stations(stations.clone()).await;
+    let mut stations_for_server = stations.clone();
+    merge_custom_stations(state.crawler.data_dir(), &mut stations_for_server);
+    state.server.state().load_stations(stations_for_server).await;
 
     Ok(stations)
 }

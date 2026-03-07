@@ -4,9 +4,12 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import type { Station, ServerStatus, CrawlProgress, ProvinceStats } from '../types'
 
+export const CUSTOM_STATION_FILTER = '__custom__'
+
 export const useRadioStore = defineStore('radio', () => {
     // 状态
     const stations = ref<Station[]>([])
+    const customStations = ref<Station[]>([])
     const serverStatus = ref<ServerStatus>({
         running: false,
         port: 3000,
@@ -24,12 +27,20 @@ export const useRadioStore = defineStore('radio', () => {
     const selectedProvince = ref<string>('')
 
     // 计算属性
+    // 合并所有电台（普通 + 自定义）
+    const allStations = computed(() => [
+        ...stations.value,
+        ...customStations.value
+    ])
+
     const filteredStations = computed(() => {
-        let result = stations.value
+        let result = allStations.value
 
         // 按省份筛选
         if (selectedProvince.value) {
-            result = result.filter(s => s.province === selectedProvince.value)
+            result = selectedProvince.value === CUSTOM_STATION_FILTER
+                ? result.filter(s => s.is_custom)
+                : result.filter(s => s.province === selectedProvince.value)
         }
 
         // 按名称搜索
@@ -46,7 +57,11 @@ export const useRadioStore = defineStore('radio', () => {
 
     // 获取所有省份
     const provinces = computed(() => {
-        const provinceSet = new Set(stations.value.map(s => s.province))
+        const provinceSet = new Set(
+            allStations.value
+                .filter(s => !s.is_custom)
+                .map(s => s.province)
+        )
         const list = Array.from(provinceSet).sort((a, b) => {
             if (a === '央广') return -1
             if (b === '央广') return 1
@@ -154,9 +169,44 @@ export const useRadioStore = defineStore('radio', () => {
         return await invoke<ProvinceStats>('get_province_statistics')
     }
 
+    // ===== 自定义电台方法 =====
+
+    // 加载自定义电台
+    const loadCustomStations = async () => {
+        try {
+            customStations.value = await invoke<Station[]>('load_custom_stations')
+        } catch (e) {
+            console.error('加载自定义电台失败:', e)
+        }
+    }
+
+    // 添加自定义电台
+    const addCustomStation = async (name: string, url: string): Promise<Station> => {
+        const station = await invoke<Station>('add_custom_station', { name, url })
+        customStations.value.push(station)
+        return station
+    }
+
+    // 删除自定义电台
+    const removeCustomStation = async (id: string) => {
+        await invoke('remove_custom_station', { id })
+        customStations.value = customStations.value.filter(s => s.id !== id)
+    }
+
+    // 更新自定义电台
+    const updateCustomStation = async (id: string, name: string, url: string): Promise<Station> => {
+        const updated = await invoke<Station>('update_custom_station', { id, name, url })
+        const index = customStations.value.findIndex(s => s.id === id)
+        if (index !== -1) {
+            customStations.value[index] = updated
+        }
+        return updated
+    }
+
     return {
         // 状态
         stations,
+        customStations,
         serverStatus,
         isLoading,
         isCrawling,
@@ -166,6 +216,7 @@ export const useRadioStore = defineStore('radio', () => {
         searchQuery,
         selectedProvince,
         // 计算属性
+        allStations,
         filteredStations,
         provinces,
         // 方法
@@ -179,6 +230,11 @@ export const useRadioStore = defineStore('radio', () => {
         installToEts2,
         getEts2Paths,
         checkFfmpeg,
-        getProvinceStats
+        getProvinceStats,
+        // 自定义电台
+        loadCustomStations,
+        addCustomStation,
+        removeCustomStation,
+        updateCustomStation,
     }
 })
