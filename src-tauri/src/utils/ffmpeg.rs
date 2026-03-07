@@ -2,6 +2,7 @@
 
 use std::path::PathBuf;
 use std::process::Command;
+use tauri::Manager;
 
 /// FFmpeg 管理器
 pub struct FFmpegManager;
@@ -84,8 +85,11 @@ impl FFmpegManager {
 
 /// 检查 FFmpeg 是否可用
 #[tauri::command]
-pub fn check_ffmpeg() -> Result<String, String> {
-    if let Some(path) = FFmpegManager::detect_ffmpeg(None) {
+pub fn check_ffmpeg(app_handle: tauri::AppHandle) -> Result<String, String> {
+    // 获取资源目录，与 lib.rs 初始化时的逻辑保持一致
+    let resource_dir = app_handle.path().resource_dir().ok();
+    
+    if let Some(path) = FFmpegManager::detect_ffmpeg(resource_dir.as_ref()) {
         if let Some(version) = FFmpegManager::get_version(&path) {
             Ok(version)
         } else {

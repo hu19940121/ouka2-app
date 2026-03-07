@@ -593,8 +593,17 @@ async fn handle_bilibili_stream_with_callback(
                 }
             }
 
-            // 清理当前 FFmpeg 进程
-            let _ = child.kill().await;
+            // 等待 FFmpeg 进程完全退出并获取状态
+            let exit_status = match child.wait().await {
+                Ok(status) => status,
+                Err(e) => {
+                    log::error!("   ❌ 无法获取 FFmpeg 退出状态: {}", e);
+                    // 假装它是成功的，继续下一个，避免死锁
+                    std::os::unix::process::ExitStatusExt::from_raw(0) 
+                }
+            };
+            
+            // 移除活动流标记（清理内存应在 wait 之后，但在逻辑流转之前）
             state_clone
                 .active_streams
                 .write()
@@ -607,7 +616,14 @@ async fn handle_bilibili_stream_with_callback(
                 break;
             }
 
-            log::info!("🔄 {} 播放完毕，获取下一个...", current_name);
+            // 检查 FFmpeg 是否异常退出
+            if !exit_status.success() {
+                log::warn!("   ⚠️ 当前节目 FFmpeg 异常退出 (Code: {:?})，可能是源失效或网络问题", exit_status.code());
+                // 如果是异常退出，暂停 3 秒再试，防止死循环刷爆 API
+                tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
+            } else {
+                log::info!("🔄 {} 播放完毕，获取下一个...", current_name);
+            }
 
             // 获取下一个视频
             let bilibili_api = BilibiliApi::new();
@@ -678,6 +694,8 @@ fn spawn_ffmpeg_for_bilibili(ffmpeg_path: &PathBuf, audio_url: &str) -> anyhow::
         // 添加 Referer (B站防盗链)
         "-headers",
         "Referer: https://www.bilibili.com/\r\n",
+        // 限制读取速度为原生速率 (关键！防止服务器全速转码导致逻辑超前)
+        "-re",
         // 重连设置
         "-reconnect",
         "1",
