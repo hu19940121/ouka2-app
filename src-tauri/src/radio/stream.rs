@@ -23,6 +23,11 @@ use tower_http::cors::{Any, CorsLayer};
 use crate::radio::api::RadioApi;
 use crate::radio::models::{ServerStatus, Station};
 
+#[cfg(unix)]
+use std::os::unix::process::ExitStatusExt;
+#[cfg(windows)]
+use std::os::windows::process::ExitStatusExt;
+
 /// 服务器共享状态
 pub struct ServerState {
     /// 电台列表
@@ -35,6 +40,10 @@ pub struct ServerState {
     pub ffmpeg_path: PathBuf,
     /// API 客户端（用于刷新流地址）
     pub api: RadioApi,
+}
+
+fn successful_exit_status() -> std::process::ExitStatus {
+    ExitStatusExt::from_raw(0)
 }
 
 impl ServerState {
@@ -599,7 +608,7 @@ async fn handle_bilibili_stream_with_callback(
                 Err(e) => {
                     log::error!("   ❌ 无法获取 FFmpeg 退出状态: {}", e);
                     // 假装它是成功的，继续下一个，避免死锁
-                    std::os::unix::process::ExitStatusExt::from_raw(0) 
+                    successful_exit_status()
                 }
             };
             
