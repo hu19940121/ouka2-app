@@ -49,15 +49,15 @@ const getTypeIcon = (name: string) => {
 <template>
   <div class="station-card">
     <div class="station-image">
-      <img 
-        v-if="station.image" 
-        :src="station.image" 
+      <img
+        v-if="station.image"
+        :src="station.image"
         :alt="station.name"
         @error="($event.target as HTMLImageElement).style.display = 'none'"
       />
       <span v-else class="station-icon">{{ getTypeIcon(station.name) }}</span>
     </div>
-    
+
     <div class="station-info">
       <h3 class="station-name">{{ station.name }}</h3>
       <p class="station-meta">
@@ -65,7 +65,7 @@ const getTypeIcon = (name: string) => {
         <span v-if="station.subtitle" class="subtitle">{{ station.subtitle }}</span>
       </p>
     </div>
-    
+
     <div class="station-actions">
       <button class="btn btn-play" @click="handlePlay" title="播放">
         <span>▶</span>

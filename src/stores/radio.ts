@@ -2,7 +2,13 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
-import type { Station, ServerStatus, CrawlProgress, ProvinceStats } from '../types'
+import type {
+    Station,
+    ServerStatus,
+    CrawlProgress,
+    ProvinceStats,
+    InstallSelectionState,
+} from '../types'
 
 export const CUSTOM_STATION_FILTER = '__custom__'
 
@@ -21,6 +27,8 @@ export const useRadioStore = defineStore('radio', () => {
     const crawlProgress = ref<CrawlProgress | null>(null)
     const error = ref<string | null>(null)
     const ffmpegStatus = ref<string | null>(null)
+    const selectedStationIds = ref<string[]>([])
+    const hasSavedInstallSelection = ref(false)
 
     // 筛选条件
     const searchQuery = ref('')
@@ -69,6 +77,28 @@ export const useRadioStore = defineStore('radio', () => {
         })
         return list
     })
+
+    const selectedStationCount = computed(() => selectedStationIds.value.length)
+
+    const selectedStations = computed(() => {
+        const stationMap = new Map(allStations.value.map(station => [station.id, station]))
+        return selectedStationIds.value
+            .map(id => stationMap.get(id))
+            .filter((station): station is Station => Boolean(station))
+    })
+
+    const sanitizeStationIds = (stationIds: string[]) => {
+        const availableIds = new Set(allStations.value.map(station => station.id))
+        const uniqueIds = new Set<string>()
+
+        return stationIds.filter((id) => {
+            if (!availableIds.has(id) || uniqueIds.has(id)) {
+                return false
+            }
+            uniqueIds.add(id)
+            return true
+        })
+    }
 
     // 获取电台本地流地址
     const getStreamUrl = (stationId: string) => {
@@ -155,8 +185,11 @@ export const useRadioStore = defineStore('radio', () => {
     }
 
     // 安装到欧卡2
-    const installToEts2 = async (): Promise<string> => {
-        return await invoke<string>('install_sii_to_ets2')
+    const installToEts2 = async (stationIds: string[] = selectedStationIds.value): Promise<string> => {
+        const sanitizedIds = sanitizeStationIds(stationIds)
+        return await invoke<string>('install_sii_to_ets2_with_selection', {
+            stationIds: sanitizedIds,
+        })
     }
 
     // 获取欧卡2路径
@@ -179,6 +212,65 @@ export const useRadioStore = defineStore('radio', () => {
         return await invoke<ProvinceStats>('get_province_statistics')
     }
 
+    // 加载安装列表
+    const loadInstallSelection = async () => {
+        const saved = await invoke<InstallSelectionState>('load_install_selection')
+        const sanitizedIds = sanitizeStationIds(saved.stationIds)
+        hasSavedInstallSelection.value = saved.hasSavedSelection
+
+        if (saved.hasSavedSelection) {
+            selectedStationIds.value = sanitizedIds
+            if (sanitizedIds.length !== saved.stationIds.length) {
+                await saveInstallSelection(sanitizedIds)
+            }
+            return
+        }
+
+        const defaultIds = allStations.value.map(station => station.id)
+        selectedStationIds.value = defaultIds
+        if (defaultIds.length > 0) {
+            await saveInstallSelection(defaultIds)
+        }
+    }
+
+    // 保存安装列表
+    const saveInstallSelection = async (stationIds: string[] = selectedStationIds.value) => {
+        const sanitizedIds = sanitizeStationIds(stationIds)
+        selectedStationIds.value = sanitizedIds
+        hasSavedInstallSelection.value = true
+        await invoke('save_install_selection', { stationIds: sanitizedIds })
+    }
+
+    // 同步安装列表与当前电台数据
+    const syncInstallSelection = async () => {
+        if (!hasSavedInstallSelection.value && allStations.value.length > 0) {
+            await saveInstallSelection(allStations.value.map(station => station.id))
+            return
+        }
+
+        const sanitizedIds = sanitizeStationIds(selectedStationIds.value)
+        if (sanitizedIds.length !== selectedStationIds.value.length) {
+            await saveInstallSelection(sanitizedIds)
+        } else {
+            selectedStationIds.value = sanitizedIds
+        }
+    }
+
+    // 切换单个电台的安装状态
+    const toggleStationSelection = async (stationId: string) => {
+        if (selectedStationIds.value.includes(stationId)) {
+            await saveInstallSelection(selectedStationIds.value.filter(id => id !== stationId))
+            return
+        }
+
+        await saveInstallSelection([...selectedStationIds.value, stationId])
+    }
+
+    // 批量设置安装列表
+    const setSelectedStationIds = async (stationIds: string[]) => {
+        await saveInstallSelection(stationIds)
+    }
+
     // ===== 自定义电台方法 =====
 
     // 加载自定义电台
@@ -194,6 +286,7 @@ export const useRadioStore = defineStore('radio', () => {
     const addCustomStation = async (name: string, url: string): Promise<Station> => {
         const station = await invoke<Station>('add_custom_station', { name, url })
         customStations.value.push(station)
+        await saveInstallSelection([...selectedStationIds.value, station.id])
         return station
     }
 
@@ -201,6 +294,7 @@ export const useRadioStore = defineStore('radio', () => {
     const removeCustomStation = async (id: string) => {
         await invoke('remove_custom_station', { id })
         customStations.value = customStations.value.filter(s => s.id !== id)
+        await syncInstallSelection()
     }
 
     // 更新自定义电台
@@ -210,6 +304,7 @@ export const useRadioStore = defineStore('radio', () => {
         if (index !== -1) {
             customStations.value[index] = updated
         }
+        await syncInstallSelection()
         return updated
     }
 
@@ -223,12 +318,15 @@ export const useRadioStore = defineStore('radio', () => {
         crawlProgress,
         error,
         ffmpegStatus,
+        selectedStationIds,
         searchQuery,
         selectedProvince,
         // 计算属性
         allStations,
         filteredStations,
         provinces,
+        selectedStationCount,
+        selectedStations,
         // 方法
         getStreamUrl,
         loadStations,
@@ -242,6 +340,11 @@ export const useRadioStore = defineStore('radio', () => {
         getEts2Paths,
         checkFfmpeg,
         getProvinceStats,
+        loadInstallSelection,
+        saveInstallSelection,
+        syncInstallSelection,
+        toggleStationSelection,
+        setSelectedStationIds,
         // 自定义电台
         loadCustomStations,
         addCustomStation,

@@ -5,6 +5,7 @@ use std::sync::Arc;
 use tauri::State;
 use tokio::sync::Mutex;
 
+use super::config::{load_install_selection_from_file, save_install_selection_to_file};
 use crate::radio::Station;
 use crate::AppState;
 
@@ -143,6 +144,15 @@ pub async fn remove_custom_station(
     }
 
     save_custom_stations_to_file(&data_dir, &custom_stations)?;
+
+    // 同步清理安装列表
+    if let Some(mut selected_ids) = load_install_selection_from_file(&data_dir) {
+        let before_len = selected_ids.len();
+        selected_ids.retain(|selected_id| selected_id != &id);
+        if selected_ids.len() != before_len {
+            save_install_selection_to_file(&data_dir, &selected_ids)?;
+        }
+    }
 
     // 从服务器状态中移除
     let server_state = state.server.state();

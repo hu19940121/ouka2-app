@@ -92,9 +92,13 @@ pub fn run() {
             get_server_status,
             // 配置命令
             generate_sii,
+            generate_sii_with_selection,
             install_sii_to_ets2,
+            install_sii_to_ets2_with_selection,
             get_ets2_paths,
             get_app_data_dir,
+            load_install_selection,
+            save_install_selection,
             // 自定义电台命令
             add_custom_station,
             remove_custom_station,

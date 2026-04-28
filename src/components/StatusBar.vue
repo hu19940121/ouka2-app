@@ -5,6 +5,7 @@ import type { ServerStatus } from '../types'
 const props = defineProps<{
   status: ServerStatus
   stationCount: number
+  selectedStationCount: number
   ffmpegStatus: string | null
 }>()
 
@@ -37,6 +38,9 @@ const statusColor = computed(() => {
       <div class="status-info">
         <span class="info-item">
           📻 {{ stationCount }} 个电台
+        </span>
+        <span class="info-item selected">
+          📦 待安装 {{ selectedStationCount }} 个
         </span>
         <span v-if="status.running && status.active_streams > 0" class="info-item active">
           🎵 {{ status.active_streams }} 个活动流
@@ -71,10 +75,10 @@ const statusColor = computed(() => {
       <button
         class="btn btn-primary"
         @click="$emit('install')"
-        :disabled="stationCount === 0"
-        title="安装到欧卡2"
+        :disabled="stationCount === 0 || selectedStationCount === 0"
+        title="安装选中的电台到欧卡2"
       >
-        📥 安装到欧卡2
+        📥 安装选中电台
       </button>
     </div>
   </div>
@@ -143,6 +147,10 @@ const statusColor = computed(() => {
 
 .info-item.active {
   color: #4ade80;
+}
+
+.info-item.selected {
+  color: #7dd3fc;
 }
 
 .status-right {

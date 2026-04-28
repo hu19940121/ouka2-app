@@ -5,6 +5,7 @@ import StationCard from './components/StationCard.vue'
 import AudioPlayer from './components/AudioPlayer.vue'
 import StatusBar from './components/StatusBar.vue'
 import CrawlProgress from './components/CrawlProgress.vue'
+import InstallStationsDialog from './components/InstallStationsDialog.vue'
 import type { Station } from './types'
 
 const store = useRadioStore()
@@ -23,6 +24,8 @@ const showCustomDialog = ref(false)
 const customName = ref('')
 const customUrl = ref('')
 const isAddingCustom = ref(false)
+const showInstallDialog = ref(false)
+const isInstalling = ref(false)
 
 // 显示提示
 const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
@@ -87,16 +90,33 @@ const handleStopServer = async () => {
 // 刷新电台数据
 const handleCrawl = async () => {
   await store.crawlStations()
+  await store.syncInstallSelection()
   showToast(`已获取 ${store.stations.length} 个电台`, 'success')
 }
 
 // 安装到欧卡2
 const handleInstall = async () => {
+  if (store.allStations.length === 0) {
+    showToast('没有可安装的电台，请先刷新数据', 'error')
+    return
+  }
+
+  await store.syncInstallSelection()
+  showInstallDialog.value = true
+}
+
+// 确认安装选中的电台
+const handleConfirmInstall = async (stationIds: string[]) => {
+  isInstalling.value = true
   try {
-    const path = await store.installToEts2()
-    showToast(`配置已安装到: ${path}`, 'success')
+    await store.setSelectedStationIds(stationIds)
+    const path = await store.installToEts2(stationIds)
+    showInstallDialog.value = false
+    showToast(`已安装 ${stationIds.length} 个电台到: ${path}`, 'success')
   } catch (e) {
     showToast(String(e), 'error')
+  } finally {
+    isInstalling.value = false
   }
 }
 
@@ -112,6 +132,17 @@ const closeCustomDialog = () => {
   showCustomDialog.value = false
   customName.value = ''
   customUrl.value = ''
+}
+
+// 打开安装列表对话框
+const openInstallDialog = async () => {
+  if (store.allStations.length === 0) {
+    showToast('没有可选择的电台，请先刷新数据', 'error')
+    return
+  }
+
+  await store.syncInstallSelection()
+  showInstallDialog.value = true
 }
 
 // 添加自定义电台
@@ -162,6 +193,9 @@ onMounted(async () => {
   // 加载自定义电台
   await store.loadCustomStations()
 
+  // 加载安装列表
+  await store.loadInstallSelection()
+
   // 如果没有数据，提示用户
   if (store.allStations.length === 0) {
     showToast('首次使用，请点击"刷新数据"获取电台', 'info')
@@ -211,6 +245,10 @@ onMounted(async () => {
               {{ p }}
             </option>
           </select>
+
+          <button class="btn-install-list" @click="openInstallDialog">
+            📦 安装列表 {{ store.selectedStationCount }}
+          </button>
 
           <button class="btn-add-custom" @click="openCustomDialog">
             ➕ 添加自定义电台
@@ -266,6 +304,7 @@ onMounted(async () => {
     <StatusBar
       :status="store.serverStatus"
       :station-count="store.allStations.length"
+      :selected-station-count="store.selectedStationCount"
       :ffmpeg-status="store.ffmpegStatus"
       @start="handleStartServer"
       @stop="handleStopServer"
@@ -277,6 +316,17 @@ onMounted(async () => {
     <CrawlProgress
       v-if="store.isCrawling && store.crawlProgress"
       :progress="store.crawlProgress"
+    />
+
+    <InstallStationsDialog
+      :visible="showInstallDialog"
+      :stations="store.allStations"
+      :provinces="store.provinces"
+      :selected-station-ids="store.selectedStationIds"
+      :custom-filter-value="CUSTOM_STATION_FILTER"
+      :is-installing="isInstalling"
+      @close="showInstallDialog = false"
+      @confirm="handleConfirmInstall"
     />
 
     <!-- 消息提示 -->
@@ -611,6 +661,24 @@ body {
   cursor: pointer;
   transition: all 0.2s ease;
   white-space: nowrap;
+}
+
+.btn-install-list {
+  padding: 0.8rem 1rem;
+  border: 1px solid rgba(79, 172, 254, 0.35);
+  border-radius: 10px;
+  background: rgba(79, 172, 254, 0.12);
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.btn-install-list:hover {
+  background: rgba(79, 172, 254, 0.24);
+  border-color: rgba(79, 172, 254, 0.5);
+  transform: translateY(-1px);
 }
 
 .btn-add-custom:hover {

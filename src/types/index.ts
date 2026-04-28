@@ -29,3 +29,9 @@ export interface CrawlProgress {
 
 // 省份统计
 export type ProvinceStats = [string, number][]
+
+// 安装列表状态
+export interface InstallSelectionState {
+    stationIds: string[]
+    hasSavedSelection: boolean
+}
