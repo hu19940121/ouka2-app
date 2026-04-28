@@ -44,9 +44,12 @@ const handlePlay = async (station: Station) => {
     currentStation.value = null
     // 增加 key 来强制销毁旧的 audio 元素
     playerKey.value++
-    // 等待一小段时间让浏览器断开连接
-    await new Promise(resolve => setTimeout(resolve, 100))
+    // 等待一小段时间让浏览器触发断开连接
+    await new Promise(resolve => setTimeout(resolve, 50))
   }
+
+  // WebView 可能会保留旧的媒体连接，播放新电台前主动清理后端活动流。
+  await store.stopActiveStreams()
   
   // 播放新电台
   playerKey.value++
@@ -59,9 +62,10 @@ const handleCopy = (_url: string) => {
 }
 
 // 关闭播放器
-const handleClosePlayer = () => {
+const handleClosePlayer = async () => {
   currentStation.value = null
   playerKey.value++
+  await store.stopActiveStreams()
 }
 
 // 启动服务器

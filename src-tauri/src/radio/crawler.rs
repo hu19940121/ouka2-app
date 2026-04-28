@@ -39,7 +39,7 @@ impl Crawler {
         let mut seen_ids: HashSet<String> = HashSet::new();
 
         // 1. 获取央广电台
-        log::info!("📻 正在获取央广电台...");
+        log::debug!("fetch central stations");
         progress_callback(CrawlProgress {
             current: 0,
             total: 1,
@@ -54,17 +54,17 @@ impl Crawler {
                 all_stations.push(raw.into_station("央广"));
             }
         }
-        log::info!("   找到 {} 个央广电台", all_stations.len());
+        log::debug!("central stations: {}", all_stations.len());
 
         // 2. 获取所有省份
-        log::info!("📍 正在获取省份列表...");
+        log::debug!("fetch province list");
         let provinces = self.api.get_provinces().await?;
         let total_provinces = provinces.len();
-        log::info!("   找到 {} 个省份", total_provinces);
+        log::debug!("provinces: {}", total_provinces);
 
         // 3. 遍历每个省份获取电台
         for (i, province) in provinces.iter().enumerate() {
-            log::info!("📻 正在获取 {} 电台...", province.province_name);
+            log::debug!("fetch province stations: {}", province.province_name);
             progress_callback(CrawlProgress {
                 current: i + 1,
                 total: total_provinces,
@@ -72,11 +72,7 @@ impl Crawler {
                 stations_found: all_stations.len(),
             });
 
-            match self
-                .api
-                .get_stations(&province.province_code, "0")
-                .await
-            {
+            match self.api.get_stations(&province.province_code, "0").await {
                 Ok(stations) => {
                     let mut count = 0;
                     for raw in stations {
@@ -86,10 +82,10 @@ impl Crawler {
                             count += 1;
                         }
                     }
-                    log::info!("   找到 {} 个电台", count);
+                    log::debug!("province stations: {} -> {}", province.province_name, count);
                 }
                 Err(e) => {
-                    log::error!("   获取 {} 电台失败: {}", province.province_name, e);
+                    log::error!("获取 {} 电台失败: {}", province.province_name, e);
                 }
             }
 
@@ -97,7 +93,7 @@ impl Crawler {
             tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
         }
 
-        log::info!("✅ 爬取完成！共获取 {} 个电台", all_stations.len());
+        log::debug!("crawl completed: {}", all_stations.len());
 
         // 保存到缓存
         {
@@ -123,7 +119,7 @@ impl Crawler {
         let json = serde_json::to_string_pretty(stations)?;
         std::fs::write(&path, json)?;
 
-        log::info!("📁 数据已保存到: {:?}", path);
+        log::debug!("stations saved: {:?}", path);
         Ok(())
     }
 
@@ -132,14 +128,14 @@ impl Crawler {
         let path = self.data_dir.join("stations.json");
 
         if !path.exists() {
-            log::warn!("电台数据文件不存在: {:?}", path);
+            log::debug!("stations file not found: {:?}", path);
             return Ok(Vec::new());
         }
 
         let json = std::fs::read_to_string(&path)?;
         let stations: Vec<Station> = serde_json::from_str(&json)?;
 
-        log::info!("📻 已加载 {} 个电台", stations.len());
+        log::debug!("stations loaded: {}", stations.len());
         Ok(stations)
     }
 

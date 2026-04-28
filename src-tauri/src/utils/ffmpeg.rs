@@ -27,10 +27,10 @@ impl FFmpegManager {
                 resource_dir.join("binaries").join(ffmpeg_binary),
                 resource_dir.join(ffmpeg_binary),
             ];
-            
+
             for bundled_ffmpeg in bundled_paths {
                 if bundled_ffmpeg.exists() {
-                    log::info!("📦 使用捆绑的 FFmpeg: {:?}", bundled_ffmpeg);
+                    log::debug!("bundled ffmpeg: {:?}", bundled_ffmpeg);
                     return Some(bundled_ffmpeg);
                 }
             }
@@ -38,11 +38,11 @@ impl FFmpegManager {
 
         // 2. 检查系统 PATH
         if Self::check_ffmpeg_in_path() {
-            log::info!("🔍 使用系统 PATH 中的 FFmpeg");
+            log::debug!("system ffmpeg from PATH");
             return Some(PathBuf::from("ffmpeg"));
         }
 
-        log::error!("❌ 未找到 FFmpeg");
+        log::error!("未找到 FFmpeg");
         None
     }
 
@@ -54,14 +54,14 @@ impl FFmpegManager {
             .output()
             .map(|output| output.status.success())
             .unwrap_or(false);
-        
+
         #[cfg(not(target_os = "windows"))]
         let result = Command::new("ffmpeg")
             .arg("-version")
             .output()
             .map(|output| output.status.success())
             .unwrap_or(false);
-        
+
         result
     }
 
@@ -88,7 +88,7 @@ impl FFmpegManager {
 pub fn check_ffmpeg(app_handle: tauri::AppHandle) -> Result<String, String> {
     // 获取资源目录，与 lib.rs 初始化时的逻辑保持一致
     let resource_dir = app_handle.path().resource_dir().ok();
-    
+
     if let Some(path) = FFmpegManager::detect_ffmpeg(resource_dir.as_ref()) {
         if let Some(version) = FFmpegManager::get_version(&path) {
             Ok(version)
@@ -96,6 +96,9 @@ pub fn check_ffmpeg(app_handle: tauri::AppHandle) -> Result<String, String> {
             Err("FFmpeg 存在但无法获取版本信息".to_string())
         }
     } else {
-        Err("FFmpeg 未安装。请下载 FFmpeg 并放到应用目录的 binaries 文件夹中，或安装到系统 PATH".to_string())
+        Err(
+            "FFmpeg 未安装。请下载 FFmpeg 并放到应用目录的 binaries 文件夹中，或安装到系统 PATH"
+                .to_string(),
+        )
     }
 }

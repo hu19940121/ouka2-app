@@ -17,6 +17,20 @@ const volume = ref(80)
 const isLoading = ref(false)
 const error = ref<string | null>(null)
 
+const resetAudioElement = () => {
+  if (!audioRef.value) return
+
+  audioRef.value.pause()
+  audioRef.value.removeAttribute('src')
+  audioRef.value.load()
+  isPlaying.value = false
+}
+
+const getPlaybackUrl = () => {
+  const separator = props.streamUrl.includes('?') ? '&' : '?'
+  return `${props.streamUrl}${separator}t=${Date.now()}`
+}
+
 // 组件挂载后自动播放
 onMounted(() => {
   if (props.station && props.streamUrl && audioRef.value) {
@@ -26,10 +40,7 @@ onMounted(() => {
 
 // 组件卸载时停止播放
 onUnmounted(() => {
-  if (audioRef.value) {
-    audioRef.value.pause()
-    audioRef.value.src = ''
-  }
+  resetAudioElement()
 })
 
 const startPlayback = async () => {
@@ -37,8 +48,9 @@ const startPlayback = async () => {
   
   isLoading.value = true
   error.value = null
-  
-  audioRef.value.src = props.streamUrl
+
+  resetAudioElement()
+  audioRef.value.src = getPlaybackUrl()
   audioRef.value.volume = volume.value / 100
   
   try {
@@ -73,7 +85,7 @@ const handlePause = () => {
 
 const handleError = () => {
   isLoading.value = false
-  if (props.streamUrl) {
+  if (props.streamUrl && audioRef.value?.currentSrc) {
     error.value = '无法加载音频流'
   }
 }
@@ -85,11 +97,7 @@ const handleVolumeChange = () => {
 }
 
 const handleClose = () => {
-  // 停止播放
-  if (audioRef.value) {
-    audioRef.value.pause()
-    audioRef.value.src = ''
-  }
+  resetAudioElement()
   emit('close')
 }
 
@@ -107,6 +115,7 @@ const getTypeIcon = (name: string) => {
   <div v-if="station" class="player">
     <audio
       ref="audioRef"
+      preload="none"
       @play="handlePlay"
       @pause="handlePause"
       @error="handleError"

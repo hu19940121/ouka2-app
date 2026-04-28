@@ -158,12 +158,16 @@ impl BilibiliApi {
             .timeout(std::time::Duration::from_secs(10))
             .build()
             .unwrap_or_default();
-        
+
         Self { client }
     }
 
     /// 搜索视频（带重试）
-    pub async fn search_videos(&self, keyword: &str, page: u32) -> anyhow::Result<Vec<SearchVideoResult>> {
+    pub async fn search_videos(
+        &self,
+        keyword: &str,
+        page: u32,
+    ) -> anyhow::Result<Vec<SearchVideoResult>> {
         // 最多重试 3 次
         let mut last_error = None;
         for attempt in 0..3 {
@@ -181,14 +185,19 @@ impl BilibiliApi {
     }
 
     /// 单次搜索视频
-    async fn search_videos_once(&self, keyword: &str, page: u32) -> anyhow::Result<Vec<SearchVideoResult>> {
+    async fn search_videos_once(
+        &self,
+        keyword: &str,
+        page: u32,
+    ) -> anyhow::Result<Vec<SearchVideoResult>> {
         let url = format!(
             "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword={}&page={}&duration=4",
             urlencoding::encode(keyword),
             page
         );
 
-        let resp = self.client
+        let resp = self
+            .client
             .get(&url)
             .header("Referer", "https://www.bilibili.com/")
             .header("Origin", "https://www.bilibili.com")
@@ -199,12 +208,12 @@ impl BilibiliApi {
 
         let status = resp.status();
         let text = resp.text().await?;
-        
+
         // 检查是否是空响应
         if text.is_empty() {
             anyhow::bail!("B站返回空响应，状态码: {}", status);
         }
-        
+
         // 尝试解析 JSON
         let search_resp: SearchResponse = match serde_json::from_str(&text) {
             Ok(r) => r,
@@ -215,13 +224,14 @@ impl BilibiliApi {
                 anyhow::bail!("解析搜索结果失败: {}", e);
             }
         };
-        
+
         if search_resp.code != 0 {
             anyhow::bail!("搜索失败，错误码: {}", search_resp.code);
         }
 
         // 过滤掉 bvid 为空的结果
-        let results = search_resp.data
+        let results = search_resp
+            .data
             .and_then(|d| d.result)
             .unwrap_or_default()
             .into_iter()
@@ -238,14 +248,15 @@ impl BilibiliApi {
             bvid
         );
 
-        let resp = self.client
+        let resp = self
+            .client
             .get(&url)
             .header("Referer", "https://www.bilibili.com/")
             .send()
             .await?;
 
         let info_resp: VideoInfoResponse = resp.json().await?;
-        
+
         if info_resp.code != 0 {
             anyhow::bail!("获取视频信息失败，错误码: {}", info_resp.code);
         }
@@ -255,24 +266,23 @@ impl BilibiliApi {
 
     /// 获取视频的 CID
     pub async fn get_video_cid(&self, bvid: &str) -> anyhow::Result<u64> {
-        let url = format!(
-            "https://api.bilibili.com/x/player/pagelist?bvid={}",
-            bvid
-        );
+        let url = format!("https://api.bilibili.com/x/player/pagelist?bvid={}", bvid);
 
-        let resp = self.client
+        let resp = self
+            .client
             .get(&url)
             .header("Referer", "https://www.bilibili.com/")
             .send()
             .await?;
 
         let page_resp: PageListResponse = resp.json().await?;
-        
+
         if page_resp.code != 0 {
             anyhow::bail!("获取CID失败，错误码: {}", page_resp.code);
         }
 
-        page_resp.data
+        page_resp
+            .data
             .and_then(|pages| pages.first().map(|p| p.cid))
             .ok_or_else(|| anyhow::anyhow!("无法获取视频CID"))
     }
@@ -287,24 +297,28 @@ impl BilibiliApi {
             bvid, cid
         );
 
-        let resp = self.client
+        let resp = self
+            .client
             .get(&url)
             .header("Referer", "https://www.bilibili.com/")
             .send()
             .await?;
 
         let play_resp: PlayUrlResponse = resp.json().await?;
-        
+
         if play_resp.code != 0 {
             anyhow::bail!("获取播放URL失败，错误码: {}", play_resp.code);
         }
 
-        let data = play_resp.data.ok_or_else(|| anyhow::anyhow!("无播放数据"))?;
+        let data = play_resp
+            .data
+            .ok_or_else(|| anyhow::anyhow!("无播放数据"))?;
         let dash = data.dash.ok_or_else(|| anyhow::anyhow!("无DASH数据"))?;
         let audio_list = dash.audio.ok_or_else(|| anyhow::anyhow!("无音频流"))?;
 
         // 找到最高质量的音频流
-        let best_audio = audio_list.iter()
+        let best_audio = audio_list
+            .iter()
             .max_by_key(|a| a.id)
             .ok_or_else(|| anyhow::anyhow!("音频流列表为空"))?;
 
@@ -330,14 +344,15 @@ impl BilibiliApi {
             bvid
         );
 
-        let resp = self.client
+        let resp = self
+            .client
             .get(&url)
             .header("Referer", "https://www.bilibili.com/")
             .send()
             .await?;
 
         let rec_resp: RecommendResponse = resp.json().await?;
-        
+
         if rec_resp.code != 0 {
             anyhow::bail!("获取推荐视频失败，错误码: {}", rec_resp.code);
         }
@@ -349,31 +364,32 @@ impl BilibiliApi {
     /// 1. 优先从合集中获取下一个
     /// 2. 没有合集则使用推荐视频
     pub async fn get_next_video(&self, current_bvid: &str) -> anyhow::Result<CurrentVideo> {
-        log::info!("🔄 获取下一个视频 (当前: {})", current_bvid);
-        
+        log::debug!("bilibili get next video: {}", current_bvid);
+
         // 获取当前视频详情（包含合集信息）
         let video_info = self.get_video_info(current_bvid).await?;
-        
+
         // 检查是否有合集
         if let Some(ugc_season) = &video_info.ugc_season {
-            log::info!("   📚 视频在合集中: {}", ugc_season.title);
-            
+            log::debug!("bilibili season: {}", ugc_season.title);
+
             // 遍历合集找到当前视频位置
             if let Some(sections) = &ugc_season.sections {
                 for section in sections {
                     if let Some(episodes) = &section.episodes {
                         // 找到当前视频的索引
-                        if let Some(current_idx) = episodes.iter()
-                            .position(|ep| ep.bvid == current_bvid) 
+                        if let Some(current_idx) =
+                            episodes.iter().position(|ep| ep.bvid == current_bvid)
                         {
                             // 获取下一个视频
                             if current_idx + 1 < episodes.len() {
                                 let next_ep = &episodes[current_idx + 1];
-                                log::info!("   ➡️ 合集下一个: {}", next_ep.title);
-                                
+                                log::debug!("bilibili season next: {}", next_ep.title);
+
                                 // 获取音频URL
-                                let audio_url = self.get_audio_url(&next_ep.bvid, next_ep.cid).await?;
-                                
+                                let audio_url =
+                                    self.get_audio_url(&next_ep.bvid, next_ep.cid).await?;
+
                                 return Ok(CurrentVideo {
                                     bvid: next_ep.bvid.clone(),
                                     title: next_ep.title.clone(),
@@ -382,29 +398,29 @@ impl BilibiliApi {
                                     cid: next_ep.cid,
                                 });
                             } else {
-                                log::info!("   ⚠️ 已是合集最后一个，使用推荐视频");
+                                log::debug!("bilibili season ended, using related videos");
                             }
                         }
                     }
                 }
             }
         } else {
-            log::info!("   ℹ️ 视频不在合集中，使用推荐视频");
+            log::debug!("bilibili no season, using related videos");
         }
-        
+
         // Fallback: 使用推荐视频
         let related = self.get_related_videos(current_bvid).await?;
-        
+
         if related.is_empty() {
             anyhow::bail!("无推荐视频");
         }
-        
+
         // 取第一个推荐视频
         let next_video = &related[0];
-        log::info!("   ➡️ 推荐视频: {}", next_video.title);
-        
+        log::debug!("bilibili related video: {}", next_video.title);
+
         let audio_url = self.get_audio_url(&next_video.bvid, next_video.cid).await?;
-        
+
         Ok(CurrentVideo {
             bvid: next_video.bvid.clone(),
             title: next_video.title.clone(),
@@ -417,33 +433,35 @@ impl BilibiliApi {
     /// 搜索并随机选择一个视频，返回其音频URL
     /// 模拟电台效果：搜索关键词的视频，随机选一个播放
     pub async fn get_random_audio(&self, keyword: &str) -> anyhow::Result<CurrentVideo> {
-        log::info!("🔍 搜索B站视频: {}", keyword);
-        
+        log::debug!("bilibili search: {}", keyword);
+
         // 随机选择页码（1-10页）增加随机性
         let page = rand::random::<u32>() % 10 + 1;
-        
+
         let videos = self.search_videos(keyword, page).await?;
-        
+
         if videos.is_empty() {
             anyhow::bail!("未找到相关视频");
         }
 
         // 随机选择一个视频
-        let video = videos.choose(&mut rand::thread_rng())
+        let video = videos
+            .choose(&mut rand::thread_rng())
             .ok_or_else(|| anyhow::anyhow!("随机选择失败"))?;
 
-        let title = video.title
+        let title = video
+            .title
             .replace("<em class=\"keyword\">", "")
             .replace("</em>", "");
-        log::info!("🎲 随机选中: {} - {}", video.author, title);
+        log::debug!("bilibili selected: {} - {}", video.author, title);
 
         // 获取视频详情（包含 CID）
         let video_info = self.get_video_info(&video.bvid).await?;
-        log::info!("📋 获取CID: {}", video_info.cid);
+        log::debug!("bilibili cid: {}", video_info.cid);
 
         // 获取音频URL
         let audio_url = self.get_audio_url(&video.bvid, video_info.cid).await?;
-        log::info!("🎵 获取音频URL成功");
+        log::debug!("bilibili audio url ready");
 
         Ok(CurrentVideo {
             bvid: video.bvid.clone(),

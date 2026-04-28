@@ -17,7 +17,7 @@ pub async fn start_server(state: State<'_, Arc<Mutex<AppState>>>) -> Result<(), 
     let mut stations = state.crawler.get_stations().await;
     if stations.is_empty() {
         if let Ok(loaded) = state.crawler.load_stations() {
-            log::info!("📻 从文件加载了电台数据");
+            log::debug!("从文件加载电台数据");
             state.crawler.set_stations(loaded.clone()).await;
             stations = loaded;
         }
@@ -27,17 +27,17 @@ pub async fn start_server(state: State<'_, Arc<Mutex<AppState>>>) -> Result<(), 
     merge_custom_stations(state.crawler.data_dir(), &mut stations);
     let custom_count = stations.len().saturating_sub(before_len);
     if custom_count > 0 {
-        log::info!("📻 合并了 {} 个自定义电台", custom_count);
+        log::debug!("合并自定义电台: {}", custom_count);
     }
 
     state.server.state().load_stations(stations).await;
 
     // 启动服务器
     state.server.start().await.map_err(|e| e.to_string())?;
-    
+
     let status = state.server.state().get_status().await;
-    log::info!("🚀 服务器已启动，共 {} 个电台可用", status.total_stations);
-    
+    log::info!("服务器已启动，可用电台: {}", status.total_stations);
+
     Ok(())
 }
 
@@ -46,7 +46,16 @@ pub async fn start_server(state: State<'_, Arc<Mutex<AppState>>>) -> Result<(), 
 pub async fn stop_server(state: State<'_, Arc<Mutex<AppState>>>) -> Result<(), String> {
     let mut state = state.lock().await;
     state.server.stop().await;
-    log::info!("🛑 服务器已停止");
+    log::info!("服务器已停止");
+    Ok(())
+}
+
+/// 停止当前所有活动流，但保持流媒体服务器运行
+#[tauri::command]
+pub async fn stop_active_streams(state: State<'_, Arc<Mutex<AppState>>>) -> Result<(), String> {
+    let state = state.lock().await;
+    state.server.stop_active_streams().await;
+    log::debug!("已请求停止所有活动流");
     Ok(())
 }
 
@@ -61,7 +70,7 @@ pub async fn get_server_status(
     let port = *server_state.port.read().await;
     let active_streams = server_state.active_streams.read().await.len();
     let total_stations = server_state.stations.read().await.len();
-    
+
     Ok(ServerStatus {
         running: is_running,
         port,

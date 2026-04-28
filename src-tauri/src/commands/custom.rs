@@ -46,7 +46,7 @@ fn save_custom_stations_to_file(
     let path = data_dir.join(CUSTOM_STATIONS_FILE);
     let json = serde_json::to_string_pretty(stations).map_err(|e| e.to_string())?;
     std::fs::write(&path, json).map_err(|e| e.to_string())?;
-    log::info!("📁 自定义电台已保存到: {:?}", path);
+    log::debug!("custom stations saved: {:?}", path);
     Ok(())
 }
 
@@ -58,7 +58,7 @@ pub async fn load_custom_stations(
     let state = state.lock().await;
     let data_dir = state.crawler.data_dir();
     let custom_stations = load_custom_stations_from_file(data_dir);
-    log::info!("📻 加载了 {} 个自定义电台", custom_stations.len());
+    log::debug!("custom stations loaded: {}", custom_stations.len());
 
     // 同步到服务器状态
     let server_state = state.server.state();
@@ -120,7 +120,7 @@ pub async fn add_custom_station(
         stations_map.insert(station.id.clone(), station.clone());
     }
 
-    log::info!("✅ 添加自定义电台: {} ({})", station.name, station.id);
+    log::info!("添加自定义电台: {}", station.name);
     Ok(station)
 }
 
@@ -151,7 +151,7 @@ pub async fn remove_custom_station(
         stations_map.remove(&id);
     }
 
-    log::info!("🗑️ 删除自定义电台: {}", id);
+    log::info!("删除自定义电台: {}", id);
     Ok(())
 }
 
@@ -193,6 +193,6 @@ pub async fn update_custom_station(
         stations_map.insert(id.clone(), updated.clone());
     }
 
-    log::info!("✏️ 更新自定义电台: {} ({})", updated.name, id);
+    log::info!("更新自定义电台: {}", updated.name);
     Ok(updated)
 }

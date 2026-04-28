@@ -2,10 +2,10 @@
 //!
 //! 实现与 radio.cn 的 API 通信，包括签名生成和请求发送
 
+use crate::radio::models::{ApiResponse, Province, RawStation};
+use reqwest::Client;
 use std::collections::HashMap;
 use std::time::Duration;
-use reqwest::Client;
-use crate::radio::models::{ApiResponse, Province, RawStation};
 
 /// API 密钥（从云听网站前端JS中提取）
 const API_KEY: &str = "f0fc4c668392f9f9a447e48584c214ee";
@@ -25,7 +25,7 @@ impl RadioApi {
             .connect_timeout(Duration::from_secs(10))
             .build()
             .unwrap_or_else(|_| Client::new());
-        
+
         Self { client }
     }
 
@@ -82,7 +82,7 @@ impl RadioApi {
             format!("{}{}?{}", BASE_URL, endpoint, query_string)
         };
 
-        log::info!("   🔗 请求: {}", url);
+        log::debug!("radio api request: {}", url);
 
         // 发送请求
         let response = match self
@@ -98,26 +98,26 @@ impl RadioApi {
         {
             Ok(resp) => resp,
             Err(e) => {
-                log::error!("   ❌ HTTP 请求失败: {}", e);
+                log::error!("radio api request failed: {}", e);
                 return Err(e.into());
             }
         };
 
-        log::info!("   ✅ HTTP 状态: {}", response.status());
+        log::debug!("radio api status: {}", response.status());
 
         let text = response.text().await?;
-        
+
         let data: ApiResponse<T> = match serde_json::from_str(&text) {
             Ok(d) => d,
             Err(e) => {
-                log::error!("   ❌ JSON 解析失败: {}", e);
-                log::error!("   响应内容: {}", &text[..text.len().min(500)]);
+                log::error!("radio api json parse failed: {}", e);
+                log::debug!("radio api response: {}", &text[..text.len().min(500)]);
                 return Err(e.into());
             }
         };
 
         if data.code != 0 {
-            log::error!("   ❌ API 错误: {} - {:?}", data.code, data.message);
+            log::error!("radio api error: {} - {:?}", data.code, data.message);
             anyhow::bail!(
                 "API 错误: {} - {}",
                 data.code,

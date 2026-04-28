@@ -2,8 +2,8 @@
 //!
 //! 生成欧卡2可用的 live_streams.sii 配置文件
 
-use std::path::{Path, PathBuf};
 use crate::radio::models::Station;
+use std::path::{Path, PathBuf};
 
 /// SII 文件生成器
 pub struct SiiGenerator {
@@ -70,7 +70,7 @@ live_stream_def : .live_streams {{
         }
 
         std::fs::write(path, content)?;
-        log::info!("✅ 配置文件已生成: {:?}", path);
+        log::info!("配置文件已生成: {:?}", path);
         Ok(())
     }
 

@@ -13,7 +13,10 @@ use axum::{
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::Stdio;
-use std::sync::Arc;
+use std::sync::{
+    atomic::{AtomicU64, Ordering},
+    Arc,
+};
 use tokio::io::AsyncReadExt;
 use tokio::process::{Child, Command};
 use tokio::sync::RwLock;
@@ -28,12 +31,40 @@ use std::os::unix::process::ExitStatusExt;
 #[cfg(windows)]
 use std::os::windows::process::ExitStatusExt;
 
+static NEXT_STREAM_REQUEST_ID: AtomicU64 = AtomicU64::new(1);
+
+/// 单次播放请求对应的活动流信息。
+pub struct ActiveStream {
+    pub station_id: String,
+    pub process_id: u32,
+}
+
+fn next_stream_request_id(station_id: &str) -> String {
+    let id = NEXT_STREAM_REQUEST_ID.fetch_add(1, Ordering::Relaxed);
+    format!("{}-{}", station_id, id)
+}
+
+fn kill_stream_process(process_id: u32) {
+    #[cfg(target_os = "windows")]
+    {
+        let _ = std::process::Command::new("taskkill")
+            .args(["/F", "/PID", &process_id.to_string()])
+            .output();
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = std::process::Command::new("kill")
+            .args(["-9", &process_id.to_string()])
+            .output();
+    }
+}
+
 /// 服务器共享状态
 pub struct ServerState {
     /// 电台列表
     pub stations: RwLock<HashMap<String, Station>>,
     /// 活动的 FFmpeg 进程
-    pub active_streams: RwLock<HashMap<String, u32>>, // station_id -> process_id
+    pub active_streams: RwLock<HashMap<String, ActiveStream>>, // request_id -> stream
     /// 服务器端口（可动态更新）
     pub port: RwLock<u16>,
     /// FFmpeg 路径
@@ -75,6 +106,63 @@ impl ServerState {
             total_stations: self.stations.read().await.len(),
         }
     }
+
+    /// 停止当前所有活动流，但不关闭 HTTP 服务器。
+    pub async fn stop_active_streams(&self) {
+        let active_streams: Vec<_> = {
+            let mut streams = self.active_streams.write().await;
+            streams.drain().collect()
+        };
+        let count = active_streams.len();
+
+        for (request_id, stream) in active_streams {
+            log::debug!(
+                "stop stream: {} / {} (pid: {})",
+                request_id,
+                stream.station_id,
+                stream.process_id
+            );
+            kill_stream_process(stream.process_id);
+        }
+
+        if count > 0 {
+            log::debug!("stopped active streams: {}", count);
+        }
+    }
+
+    /// 停止指定电台的旧活动流，用于收敛 WebView 对同一音频源发出的重复请求。
+    pub async fn stop_streams_for_station(&self, station_id: &str) -> bool {
+        let active_streams: Vec<_> = {
+            let mut streams = self.active_streams.write().await;
+            let request_ids: Vec<_> = streams
+                .iter()
+                .filter(|(_, stream)| stream.station_id == station_id)
+                .map(|(request_id, _)| request_id.clone())
+                .collect();
+
+            request_ids
+                .into_iter()
+                .filter_map(|request_id| {
+                    streams
+                        .remove(&request_id)
+                        .map(|stream| (request_id, stream))
+                })
+                .collect()
+        };
+        let stopped_any = !active_streams.is_empty();
+
+        for (request_id, stream) in active_streams {
+            log::debug!(
+                "stop duplicate stream: {} / {} (pid: {})",
+                request_id,
+                stream.station_id,
+                stream.process_id
+            );
+            kill_stream_process(stream.process_id);
+        }
+
+        stopped_any
+    }
 }
 
 /// 流媒体服务器
@@ -106,6 +194,11 @@ impl StreamServer {
         self.state.clone()
     }
 
+    /// 停止当前所有活动流，但保持服务器运行。
+    pub async fn stop_active_streams(&self) {
+        self.state.stop_active_streams().await;
+    }
+
     /// 启动服务器
     pub async fn start(&mut self) -> anyhow::Result<()> {
         if self.is_running {
@@ -116,43 +209,47 @@ impl StreamServer {
         self.shutdown_tx = Some(tx);
 
         let state = self.state.clone();
-        
+
         // 尝试绑定端口，如果被占用就自动切换
         let mut port = self.port;
         let max_attempts = 10; // 最多尝试 10 个端口
         let mut listener = None;
-        
+
         for attempt in 0..max_attempts {
             let addr = std::net::SocketAddr::from(([127, 0, 0, 1], port));
             match tokio::net::TcpListener::bind(addr).await {
                 Ok(l) => {
                     if attempt > 0 {
-                        log::info!("📌 端口 {} 被占用，自动切换到端口 {}", self.port, port);
+                        log::info!("端口 {} 被占用，自动切换到 {}", self.port, port);
                     }
                     listener = Some(l);
                     break;
                 }
                 Err(e) => {
-                    log::warn!("⚠️ 端口 {} 不可用: {}", port, e);
+                    log::warn!("端口 {} 不可用: {}", port, e);
                     port += 1;
                 }
             }
         }
-        
+
         let listener = listener.ok_or_else(|| {
-            anyhow::anyhow!("无法找到可用端口 (尝试了 {} 到 {})", self.port, self.port + max_attempts as u16 - 1)
+            anyhow::anyhow!(
+                "无法找到可用端口 (尝试了 {} 到 {})",
+                self.port,
+                self.port + max_attempts as u16 - 1
+            )
         })?;
-        
+
         // 更新实际使用的端口
         self.port = port;
-        
+
         // 同时更新 state 中的端口
         {
             let mut state_port = self.state.port.write().await;
             *state_port = port;
         }
-        
-        log::info!("🚀 流媒体服务器启动: http://127.0.0.1:{}", port);
+
+        log::info!("流媒体服务器已启动: http://127.0.0.1:{}", port);
 
         // 构建路由
         let app = Router::new()
@@ -179,36 +276,16 @@ impl StreamServer {
     /// 停止服务器
     pub async fn stop(&mut self) {
         if let Some(tx) = self.shutdown_tx.take() {
-            // 先杀死所有活动的 FFmpeg 进程
-            let active_streams = self.state.active_streams.read().await;
-            for (station_id, pid) in active_streams.iter() {
-                log::info!("   🔪 终止流: {} (PID: {})", station_id, pid);
-                #[cfg(target_os = "windows")]
-                {
-                    let _ = std::process::Command::new("taskkill")
-                        .args(["/F", "/PID", &pid.to_string()])
-                        .output();
-                }
-                #[cfg(not(target_os = "windows"))]
-                {
-                    let _ = std::process::Command::new("kill")
-                        .args(["-9", &pid.to_string()])
-                        .output();
-                }
-            }
-            drop(active_streams);
-            
-            // 清空活动流列表
-            self.state.active_streams.write().await.clear();
-            
+            self.stop_active_streams().await;
+
             // 发送停止信号
             let _ = tx.send(());
-            
+
             // 等待一小段时间让端口释放
             tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-            
+
             self.is_running = false;
-            log::info!("🛑 流媒体服务器已停止");
+            log::info!("流媒体服务器已停止");
         }
     }
 }
@@ -216,7 +293,8 @@ impl StreamServer {
 use crate::radio::bilibili::BilibiliApi;
 
 /// 郭德纲电台当前播放的 BVID（用于续播）
-static GUODEGANG_CURRENT_BVID: std::sync::OnceLock<tokio::sync::RwLock<Option<String>>> = std::sync::OnceLock::new();
+static GUODEGANG_CURRENT_BVID: std::sync::OnceLock<tokio::sync::RwLock<Option<String>>> =
+    std::sync::OnceLock::new();
 
 fn get_current_bvid_lock() -> &'static tokio::sync::RwLock<Option<String>> {
     GUODEGANG_CURRENT_BVID.get_or_init(|| tokio::sync::RwLock::new(None))
@@ -231,12 +309,12 @@ async fn handle_stream(
     if station_id == "guodegang_radio" {
         return handle_guodegang_radio(state).await;
     }
-    
+
     // 如果切换到其他频道，清除郭德纲电台状态
     {
         let mut current_bvid = get_current_bvid_lock().write().await;
         if current_bvid.is_some() {
-            log::info!("🔄 切换频道，清除郭德纲电台状态");
+            log::debug!("clear guodegang playback state");
             *current_bvid = None;
         }
     }
@@ -254,11 +332,13 @@ async fn handle_stream(
         }
     };
 
-    log::info!("🎵 开始转发: {}", station.name);
+    // WebView 可能会对同一个 audio src 发起两次 GET。
+    // 新请求到来时先关闭该电台已有流，确保同一电台最终只保留一个 FFmpeg。
+    let replaced_existing_stream = state.stop_streams_for_station(&station_id).await;
 
     // 获取流地址：自定义电台直接用缓存地址，普通电台刷新
     let stream_url = if station.is_custom {
-        log::info!("   📌 自定义电台，使用配置地址");
+        log::debug!("custom station stream url");
         match station.get_best_stream_url() {
             Some(url) => url.to_string(),
             None => {
@@ -273,12 +353,12 @@ async fn handle_stream(
             .await
         {
             Ok(Some(url)) => {
-                log::info!("   ✅ 获取到新地址");
+                log::debug!("refreshed stream url");
                 url
             }
             Ok(None) => {
                 // 使用缓存的地址
-                log::warn!("   ⚠️ 刷新失败，使用缓存地址");
+                log::warn!("刷新流地址失败，使用缓存地址");
                 match station.get_best_stream_url() {
                     Some(url) => url.to_string(),
                     None => {
@@ -287,7 +367,7 @@ async fn handle_stream(
                 }
             }
             Err(e) => {
-                log::error!("   ❌ 刷新流地址失败: {}", e);
+                log::error!("刷新流地址失败: {}", e);
                 match station.get_best_stream_url() {
                     Some(url) => url.to_string(),
                     None => {
@@ -298,10 +378,7 @@ async fn handle_stream(
         }
     };
 
-    log::info!(
-        "   📡 流地址: {}...",
-        &stream_url[..stream_url.len().min(80)]
-    );
+    log::debug!("stream url: {}...", &stream_url[..stream_url.len().min(80)]);
 
     // 启动 FFmpeg 进程
     let ffmpeg_path = &state.ffmpeg_path;
@@ -309,7 +386,7 @@ async fn handle_stream(
     let mut child = match spawn_ffmpeg(ffmpeg_path, &stream_url) {
         Ok(child) => child,
         Err(e) => {
-            log::error!("   ❌ 启动 FFmpeg 失败: {}", e);
+            log::error!("启动 FFmpeg 失败: {}", e);
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 format!("启动 FFmpeg 失败: {}", e),
@@ -318,13 +395,19 @@ async fn handle_stream(
         }
     };
 
-    // 记录活动进程
-    if let Some(pid) = child.id() {
-        state
-            .active_streams
-            .write()
-            .await
-            .insert(station_id.clone(), pid);
+    // 记录活动进程。使用请求级 ID，避免同一电台连续播放时互相覆盖。
+    let request_id = next_stream_request_id(&station_id);
+    if let Some(process_id) = child.id() {
+        state.active_streams.write().await.insert(
+            request_id.clone(),
+            ActiveStream {
+                station_id: station_id.clone(),
+                process_id,
+            },
+        );
+    }
+    if !replaced_existing_stream {
+        log::info!("正在播放: {} ({})", station.name, station.province);
     }
 
     // 获取输出流
@@ -335,6 +418,7 @@ async fn handle_stream(
 
     // 在后台读取 FFmpeg 输出
     let station_id_clone = station_id.clone();
+    let request_id_clone = request_id.clone();
     let state_clone = state.clone();
     tokio::spawn(async move {
         let mut reader = tokio::io::BufReader::new(stdout);
@@ -349,7 +433,7 @@ async fn handle_stream(
                     }
                 }
                 Err(e) => {
-                    log::error!("读取 FFmpeg 输出错误: {}", e);
+                    log::error!("读取 FFmpeg 输出失败: {}", e);
                     let _ = tx.send(Err(e)).await;
                     break;
                 }
@@ -362,8 +446,8 @@ async fn handle_stream(
             .active_streams
             .write()
             .await
-            .remove(&station_id_clone);
-        log::info!("🔇 {} 流已关闭", station_id_clone);
+            .remove(&request_id_clone);
+        log::debug!("stream closed: {} / {}", request_id_clone, station_id_clone);
     });
 
     // 构建响应
@@ -375,10 +459,7 @@ async fn handle_stream(
         .header(header::TRANSFER_ENCODING, "chunked")
         .header(header::CACHE_CONTROL, "no-cache")
         .header(header::CONNECTION, "keep-alive")
-        .header(
-            "icy-name",
-            urlencoding::encode(&station.name).to_string(),
-        )
+        .header("icy-name", urlencoding::encode(&station.name).to_string())
         .body(body)
         .unwrap()
 }
@@ -386,7 +467,7 @@ async fn handle_stream(
 /// 启动 FFmpeg 转码进程
 fn spawn_ffmpeg(ffmpeg_path: &PathBuf, stream_url: &str) -> anyhow::Result<Child> {
     let mut cmd = Command::new(ffmpeg_path);
-    
+
     cmd.args([
         "-reconnect",
         "1",
@@ -419,7 +500,7 @@ fn spawn_ffmpeg(ffmpeg_path: &PathBuf, stream_url: &str) -> anyhow::Result<Child
     .stdout(Stdio::piped())
     .stderr(Stdio::null())
     .kill_on_drop(true);
-    
+
     // Windows: 隐藏控制台窗口
     #[cfg(target_os = "windows")]
     {
@@ -428,7 +509,7 @@ fn spawn_ffmpeg(ffmpeg_path: &PathBuf, stream_url: &str) -> anyhow::Result<Child
         const CREATE_NO_WINDOW: u32 = 0x08000000;
         cmd.creation_flags(CREATE_NO_WINDOW);
     }
-    
+
     let child = cmd.spawn()?;
     Ok(child)
 }
@@ -452,76 +533,85 @@ async fn handle_stations_api(State(state): State<Arc<ServerState>>) -> impl Into
             s
         })
         .collect();
-    
+
     // 添加郭德纲电台
     list.push(Station {
         id: "guodegang_radio".to_string(),
         name: "郭德纲电台".to_string(),
         subtitle: "随机播放B站郭德纲相声".to_string(),
-        image: "https://i0.hdslb.com/bfs/face/a6a0bb6eb6a52b96f5ea0e5b6a0a6ff3d74e55cb.jpg".to_string(),
+        image: "https://i0.hdslb.com/bfs/face/a6a0bb6eb6a52b96f5ea0e5b6a0a6ff3d74e55cb.jpg"
+            .to_string(),
         province: "bilibili".to_string(),
         play_url_low: None,
         mp3_play_url_low: None,
         mp3_play_url_high: Some(format!("http://127.0.0.1:{}/stream/guodegang_radio", port)),
         is_custom: false,
     });
-    
+
     axum::Json(list)
 }
 
 /// 处理郭德纲电台请求
 async fn handle_guodegang_radio(state: Arc<ServerState>) -> Response {
     let bilibili_api = BilibiliApi::new();
-    
+
     // 检查是否有正在播放的状态（用于续播）
     let current_bvid = {
         let lock = get_current_bvid_lock().read().await;
         lock.clone()
     };
-    
+
     let video = if let Some(bvid) = current_bvid {
         // 有当前播放状态，尝试获取下一个视频
-        log::info!("郭德纲电台 - 获取下一个节目 (当前: {})", bvid);
-        
+        log::debug!("guodegang next video from {}", bvid);
+
         match bilibili_api.get_next_video(&bvid).await {
             Ok(video) => {
-                log::info!("   ➡️ 下一个: {} - {}", video.author, video.title);
+                log::debug!("guodegang next: {} - {}", video.author, video.title);
                 video
             }
             Err(e) => {
-                log::warn!("   ⚠️ 获取下一个失败: {}，重新随机搜索", e);
+                log::warn!("获取下一个节目失败，重新随机搜索: {}", e);
                 // 失败时重新随机搜索
                 match bilibili_api.get_random_audio("郭德纲 相声").await {
                     Ok(v) => v,
                     Err(e) => {
-                        log::error!("   ❌ 随机搜索也失败了: {}", e);
-                        return (StatusCode::INTERNAL_SERVER_ERROR, format!("获取节目失败: {}", e)).into_response();
+                        log::error!("随机搜索节目失败: {}", e);
+                        return (
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            format!("获取节目失败: {}", e),
+                        )
+                            .into_response();
                     }
                 }
             }
         }
     } else {
         // 没有播放状态，首次随机搜索
-        log::info!("郭德纲电台 - 首次随机搜索节目...");
-        
+        log::debug!("guodegang first random search");
+
         match bilibili_api.get_random_audio("郭德纲 相声").await {
             Ok(video) => {
-                log::info!("   🎲 随机选中: {} - {}", video.author, video.title);
+                log::debug!("guodegang selected: {} - {}", video.author, video.title);
                 video
             }
             Err(e) => {
-                log::error!("   ❌ 获取节目失败: {}", e);
-                return (StatusCode::INTERNAL_SERVER_ERROR, format!("获取节目失败: {}", e)).into_response();
+                log::error!("获取节目失败: {}", e);
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("获取节目失败: {}", e),
+                )
+                    .into_response();
             }
         }
     };
-    
+
     // 更新当前播放状态
     {
         let mut lock = get_current_bvid_lock().write().await;
         *lock = Some(video.bvid.clone());
     }
-    
+
     let title = format!("郭德纲电台: {}", video.title);
     handle_bilibili_stream_with_callback(state, &title, &video.audio_url, &video.bvid).await
 }
@@ -533,7 +623,10 @@ async fn handle_bilibili_stream_with_callback(
     audio_url: &str,
     bvid: &str,
 ) -> Response {
-    log::info!("   📡 B站音频地址: {}...", &audio_url[..audio_url.len().min(80)]);
+    log::debug!(
+        "bilibili audio url: {}...",
+        &audio_url[..audio_url.len().min(80)]
+    );
 
     // 创建流式响应
     let (tx, rx) = tokio::sync::mpsc::channel::<Result<Vec<u8>, std::io::Error>>(32);
@@ -543,33 +636,42 @@ async fn handle_bilibili_stream_with_callback(
     let name_owned = name.to_string();
     let bvid_owned = bvid.to_string();
     let audio_url_owned = audio_url.to_string();
-    
+
     tokio::spawn(async move {
         let mut current_bvid = bvid_owned;
         let mut current_audio_url = audio_url_owned;
         let mut current_name = name_owned;
-        
+
         // 循环播放：播放完一个自动获取下一个
         loop {
-            log::info!("🎵 开始播放: {}", current_name);
-            
+            // 同一电台重复请求只保留最新一路，避免 WebView 双 GET 产生双 FFmpeg。
+            let replaced_existing_stream = state_clone
+                .stop_streams_for_station("guodegang_radio")
+                .await;
+
             // 启动 FFmpeg 进程
             let ffmpeg_path = &state_clone.ffmpeg_path;
             let mut child = match spawn_ffmpeg_for_bilibili(ffmpeg_path, &current_audio_url) {
                 Ok(child) => child,
                 Err(e) => {
-                    log::error!("   ❌ 启动 FFmpeg 失败: {}", e);
+                    log::error!("启动 FFmpeg 失败: {}", e);
                     break;
                 }
             };
 
-            // 记录活动进程
-            if let Some(pid) = child.id() {
-                state_clone
-                    .active_streams
-                    .write()
-                    .await
-                    .insert("guodegang_radio".to_string(), pid);
+            // 记录活动进程。郭德纲电台会自动续播，每一段也单独记录。
+            let request_id = next_stream_request_id("guodegang_radio");
+            if let Some(process_id) = child.id() {
+                state_clone.active_streams.write().await.insert(
+                    request_id.clone(),
+                    ActiveStream {
+                        station_id: "guodegang_radio".to_string(),
+                        process_id,
+                    },
+                );
+            }
+            if !replaced_existing_stream {
+                log::info!("正在播放: {}", current_name);
             }
 
             // 获取输出流
@@ -577,6 +679,7 @@ async fn handle_bilibili_stream_with_callback(
                 Some(s) => s,
                 None => {
                     log::error!("无法获取 FFmpeg stdout");
+                    state_clone.active_streams.write().await.remove(&request_id);
                     break;
                 }
             };
@@ -606,57 +709,64 @@ async fn handle_bilibili_stream_with_callback(
             let exit_status = match child.wait().await {
                 Ok(status) => status,
                 Err(e) => {
-                    log::error!("   ❌ 无法获取 FFmpeg 退出状态: {}", e);
+                    log::error!("无法获取 FFmpeg 退出状态: {}", e);
                     // 假装它是成功的，继续下一个，避免死锁
                     successful_exit_status()
                 }
             };
-            
+
             // 移除活动流标记（清理内存应在 wait 之后，但在逻辑流转之前）
-            state_clone
-                .active_streams
-                .write()
-                .await
-                .remove("guodegang_radio");
+            state_clone.active_streams.write().await.remove(&request_id);
 
             // 如果客户端断开，停止循环
             if client_disconnected {
-                log::info!("🔇 客户端断开连接，停止播放");
+                log::debug!("bilibili client disconnected");
                 break;
             }
 
             // 检查 FFmpeg 是否异常退出
             if !exit_status.success() {
-                log::warn!("   ⚠️ 当前节目 FFmpeg 异常退出 (Code: {:?})，可能是源失效或网络问题", exit_status.code());
+                log::warn!(
+                    "当前节目 FFmpeg 异常退出 (Code: {:?})，可能是源失效或网络问题",
+                    exit_status.code()
+                );
                 // 如果是异常退出，暂停 3 秒再试，防止死循环刷爆 API
                 tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
             } else {
-                log::info!("🔄 {} 播放完毕，获取下一个...", current_name);
+                log::debug!("bilibili stream ended, fetching next: {}", current_name);
             }
 
             // 获取下一个视频
             let bilibili_api = BilibiliApi::new();
             match bilibili_api.get_next_video(&current_bvid).await {
                 Ok(next_video) => {
-                    log::info!("   ➡️ 下一个: {} - {}", next_video.author, next_video.title);
-                    
+                    log::debug!(
+                        "bilibili next: {} - {}",
+                        next_video.author,
+                        next_video.title
+                    );
+
                     // 更新当前播放状态
                     {
                         let mut lock = get_current_bvid_lock().write().await;
                         *lock = Some(next_video.bvid.clone());
                     }
-                    
+
                     // 更新循环变量
                     current_bvid = next_video.bvid;
                     current_audio_url = next_video.audio_url;
                     current_name = format!("郭德纲电台: {}", next_video.title);
                 }
                 Err(e) => {
-                    log::error!("   ❌ 获取下一个视频失败: {}", e);
+                    log::error!("获取下一个视频失败: {}", e);
                     // 尝试重新随机搜索
                     match bilibili_api.get_random_audio("郭德纲 相声").await {
                         Ok(video) => {
-                            log::info!("   🎲 重新随机: {} - {}", video.author, video.title);
+                            log::debug!(
+                                "bilibili random fallback: {} - {}",
+                                video.author,
+                                video.title
+                            );
                             {
                                 let mut lock = get_current_bvid_lock().write().await;
                                 *lock = Some(video.bvid.clone());
@@ -666,15 +776,15 @@ async fn handle_bilibili_stream_with_callback(
                             current_name = format!("郭德纲电台: {}", video.title);
                         }
                         Err(e2) => {
-                            log::error!("   ❌ 重新随机也失败: {}，停止播放", e2);
+                            log::error!("重新随机节目失败，停止播放: {}", e2);
                             break;
                         }
                     }
                 }
             }
         }
-        
-        log::info!("🔇 郭德纲电台播放结束");
+
+        log::debug!("guodegang stream stopped");
     });
 
     // 构建响应
@@ -695,7 +805,7 @@ async fn handle_bilibili_stream_with_callback(
 /// B站的 m4s 格式需要添加 User-Agent 和 Referer
 fn spawn_ffmpeg_for_bilibili(ffmpeg_path: &PathBuf, audio_url: &str) -> anyhow::Result<Child> {
     let mut cmd = Command::new(ffmpeg_path);
-    
+
     cmd.args([
         // 添加 User-Agent
         "-user_agent",
@@ -741,7 +851,7 @@ fn spawn_ffmpeg_for_bilibili(ffmpeg_path: &PathBuf, audio_url: &str) -> anyhow::
     .stdout(Stdio::piped())
     .stderr(Stdio::null())
     .kill_on_drop(true);
-    
+
     // Windows: 隐藏控制台窗口
     #[cfg(target_os = "windows")]
     {
@@ -750,7 +860,7 @@ fn spawn_ffmpeg_for_bilibili(ffmpeg_path: &PathBuf, audio_url: &str) -> anyhow::
         const CREATE_NO_WINDOW: u32 = 0x08000000;
         cmd.creation_flags(CREATE_NO_WINDOW);
     }
-    
+
     let child = cmd.spawn()?;
     Ok(child)
 }

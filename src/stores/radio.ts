@@ -130,6 +130,16 @@ export const useRadioStore = defineStore('radio', () => {
         }
     }
 
+    // 停止当前活动流，但不停止服务器
+    const stopActiveStreams = async () => {
+        try {
+            await invoke('stop_active_streams')
+            await refreshServerStatus()
+        } catch (e) {
+            error.value = String(e)
+        }
+    }
+
     // 刷新服务器状态
     const refreshServerStatus = async () => {
         try {
@@ -225,6 +235,7 @@ export const useRadioStore = defineStore('radio', () => {
         crawlStations,
         startServer,
         stopServer,
+        stopActiveStreams,
         refreshServerStatus,
         generateSii,
         installToEts2,

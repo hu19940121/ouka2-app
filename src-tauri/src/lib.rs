@@ -11,10 +11,10 @@ use std::sync::Arc;
 use tauri::Manager;
 use tokio::sync::Mutex;
 
-use commands::*;
 use commands::custom::merge_custom_stations;
+use commands::*;
 use radio::{Crawler, StreamServer};
-use utils::{FFmpegManager, check_ffmpeg};
+use utils::{check_ffmpeg, FFmpegManager};
 
 /// 应用全局状态
 pub struct AppState {
@@ -40,15 +40,12 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             // 获取应用数据目录
-            let data_dir = app
-                .path()
-                .app_data_dir()
-                .expect("无法获取应用数据目录");
+            let data_dir = app.path().app_data_dir().expect("无法获取应用数据目录");
 
             // 确保目录存在
             std::fs::create_dir_all(&data_dir).ok();
 
-            log::info!("📁 应用数据目录: {:?}", data_dir);
+            log::debug!("app data dir: {:?}", data_dir);
 
             // 检测 FFmpeg
             let resource_dir = app.path().resource_dir().ok();
@@ -70,8 +67,12 @@ pub fn run() {
                         state.crawler.set_stations(stations.clone()).await;
                         let mut stations_for_server = stations;
                         merge_custom_stations(state.crawler.data_dir(), &mut stations_for_server);
-                        state.server.state().load_stations(stations_for_server).await;
-                        log::info!("✅ 已加载保存的电台数据");
+                        state
+                            .server
+                            .state()
+                            .load_stations(stations_for_server)
+                            .await;
+                        log::debug!("loaded saved stations");
                     }
                 }
             });
@@ -87,6 +88,7 @@ pub fn run() {
             // 服务器命令
             start_server,
             stop_server,
+            stop_active_streams,
             get_server_status,
             // 配置命令
             generate_sii,

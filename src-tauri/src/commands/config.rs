@@ -40,9 +40,7 @@ pub async fn generate_sii(state: State<'_, Arc<Mutex<AppState>>>) -> Result<Stri
 
 /// 安装 SII 到欧卡2目录
 #[tauri::command]
-pub async fn install_sii_to_ets2(
-    state: State<'_, Arc<Mutex<AppState>>>,
-) -> Result<String, String> {
+pub async fn install_sii_to_ets2(state: State<'_, Arc<Mutex<AppState>>>) -> Result<String, String> {
     let state = state.lock().await;
 
     let stations = get_all_stations(&state).await;

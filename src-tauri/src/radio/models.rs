@@ -58,30 +58,30 @@ where
     D: serde::Deserializer<'de>,
 {
     use serde::de::{self, Visitor};
-    
+
     struct ProvinceCodeVisitor;
-    
+
     impl<'de> Visitor<'de> for ProvinceCodeVisitor {
         type Value = String;
-        
+
         fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
             formatter.write_str("a string or integer")
         }
-        
+
         fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E>
         where
             E: de::Error,
         {
             Ok(value.to_string())
         }
-        
+
         fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E>
         where
             E: de::Error,
         {
             Ok(value.to_string())
         }
-        
+
         fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
         where
             E: de::Error,
@@ -89,7 +89,7 @@ where
             Ok(value.to_string())
         }
     }
-    
+
     deserializer.deserialize_any(ProvinceCodeVisitor)
 }
 

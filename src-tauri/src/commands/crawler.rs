@@ -5,7 +5,7 @@ use tauri::{AppHandle, Emitter, State};
 use tokio::sync::Mutex;
 
 use super::custom::merge_custom_stations;
-use crate::radio::{CrawlProgress, Station, get_province_stats};
+use crate::radio::{get_province_stats, CrawlProgress, Station};
 use crate::AppState;
 
 /// 获取电台列表
@@ -35,17 +35,22 @@ pub async fn crawl_stations(
     let app_clone = app.clone();
     let stations = crawler
         .crawl_all(move |progress: CrawlProgress| {
-            log::info!("📻 进度: {}/{} - {} (已找到 {} 个电台)", 
-                progress.current, progress.total, progress.province, progress.stations_found);
+            log::debug!(
+                "📻 进度: {}/{} - {} (已找到 {} 个电台)",
+                progress.current,
+                progress.total,
+                progress.province,
+                progress.stations_found
+            );
             let _ = app_clone.emit("crawl-progress", &progress);
         })
         .await
         .map_err(|e| {
-            log::error!("❌ 爬取失败: {}", e);
+            log::error!("电台数据刷新失败: {}", e);
             e.to_string()
         })?;
 
-    log::info!("✅ 爬取完成，共 {} 个电台", stations.len());
+    log::info!("电台数据刷新完成: {}", stations.len());
 
     // 添加郭德纲电台
     let mut stations = stations;
@@ -53,7 +58,8 @@ pub async fn crawl_stations(
         id: "guodegang_radio".to_string(),
         name: "郭德纲电台".to_string(),
         subtitle: "随机播放B站郭德纲相声".to_string(),
-        image: "https://i0.hdslb.com/bfs/face/a6a0bb6eb6a52b96f5ea0e5b6a0a6ff3d74e55cb.jpg".to_string(),
+        image: "https://i0.hdslb.com/bfs/face/a6a0bb6eb6a52b96f5ea0e5b6a0a6ff3d74e55cb.jpg"
+            .to_string(),
         province: "bilibili".to_string(),
         play_url_low: None,
         mp3_play_url_low: None,
@@ -97,7 +103,8 @@ pub async fn load_saved_stations(
         id: "guodegang_radio".to_string(),
         name: "郭德纲电台".to_string(),
         subtitle: "随机播放B站郭德纲相声".to_string(),
-        image: "https://i0.hdslb.com/bfs/face/a6a0bb6eb6a52b96f5ea0e5b6a0a6ff3d74e55cb.jpg".to_string(),
+        image: "https://i0.hdslb.com/bfs/face/a6a0bb6eb6a52b96f5ea0e5b6a0a6ff3d74e55cb.jpg"
+            .to_string(),
         province: "bilibili".to_string(),
         play_url_low: None,
         mp3_play_url_low: None,
@@ -111,7 +118,11 @@ pub async fn load_saved_stations(
     // 更新服务器
     let mut stations_for_server = stations.clone();
     merge_custom_stations(state.crawler.data_dir(), &mut stations_for_server);
-    state.server.state().load_stations(stations_for_server).await;
+    state
+        .server
+        .state()
+        .load_stations(stations_for_server)
+        .await;
 
     Ok(stations)
 }
