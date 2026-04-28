@@ -36,7 +36,7 @@ pub async fn crawl_stations(
     let stations = crawler
         .crawl_all(move |progress: CrawlProgress| {
             log::debug!(
-                "📻 进度: {}/{} - {} (已找到 {} 个电台)",
+                "刷新进度: {}/{} - {} (已找到 {} 个电台)",
                 progress.current,
                 progress.total,
                 progress.province,
@@ -51,21 +51,6 @@ pub async fn crawl_stations(
         })?;
 
     log::info!("电台数据刷新完成: {}", stations.len());
-
-    // 添加郭德纲电台
-    let mut stations = stations;
-    stations.push(Station {
-        id: "guodegang_radio".to_string(),
-        name: "郭德纲电台".to_string(),
-        subtitle: "随机播放B站郭德纲相声".to_string(),
-        image: "https://i0.hdslb.com/bfs/face/a6a0bb6eb6a52b96f5ea0e5b6a0a6ff3d74e55cb.jpg"
-            .to_string(),
-        province: "bilibili".to_string(),
-        play_url_low: None,
-        mp3_play_url_low: None,
-        mp3_play_url_high: Some("http://127.0.0.1:3000/stream/guodegang_radio".to_string()),
-        is_custom: false,
-    });
 
     // 重新获取锁来更新状态
     {
@@ -96,21 +81,7 @@ pub async fn load_saved_stations(
 ) -> Result<Vec<Station>, String> {
     let state = state.lock().await;
 
-    let mut stations = state.crawler.load_stations().map_err(|e| e.to_string())?;
-
-    // 添加郭德纲电台（B站随机相声）
-    stations.push(Station {
-        id: "guodegang_radio".to_string(),
-        name: "郭德纲电台".to_string(),
-        subtitle: "随机播放B站郭德纲相声".to_string(),
-        image: "https://i0.hdslb.com/bfs/face/a6a0bb6eb6a52b96f5ea0e5b6a0a6ff3d74e55cb.jpg"
-            .to_string(),
-        province: "bilibili".to_string(),
-        play_url_low: None,
-        mp3_play_url_low: None,
-        mp3_play_url_high: Some("http://127.0.0.1:3000/stream/guodegang_radio".to_string()),
-        is_custom: false,
-    });
+    let stations = state.crawler.load_stations().map_err(|e| e.to_string())?;
 
     // 更新缓存
     state.crawler.set_stations(stations.clone()).await;

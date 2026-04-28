@@ -1,7 +1,6 @@
 //! 电台核心功能模块
 
 pub mod api;
-pub mod bilibili;
 pub mod crawler;
 pub mod models;
 pub mod sii;
