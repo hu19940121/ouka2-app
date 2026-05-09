@@ -4,6 +4,7 @@ import { NConfigProvider, NTransfer, zhCN, type TransferOption } from 'naive-ui'
 import type { Station } from '../types'
 
 interface StationTransferOption extends TransferOption {
+  stationName: string
   province: string
   subtitle: string
   isCustom: boolean
@@ -58,6 +59,7 @@ const transferOptions = computed<StationTransferOption[]>(() => {
     .map((station) => ({
       value: station.id,
       label: station.name,
+      stationName: station.name,
       province: station.province,
       subtitle: station.subtitle || '无副标题',
       isCustom: Boolean(station.is_custom),
@@ -101,7 +103,7 @@ const renderTransferLabel = ({ option }: { option: TransferOption }) => {
 
   return h('div', { class: 'transfer-station' }, [
     h('div', { class: 'transfer-station__row' }, [
-      h('span', { class: 'transfer-station__name' }, stationOption.label),
+      h('span', { class: 'transfer-station__name' }, stationOption.stationName),
       h(
         'span',
         {
