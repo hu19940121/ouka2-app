@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, h, ref, watch } from 'vue'
-import { NConfigProvider, NTransfer, zhCN, type TransferOption } from 'naive-ui'
+import { NConfigProvider, NTransfer, zhCN, type GlobalThemeOverrides, type TransferOption } from 'naive-ui'
 import type { Station } from '../types'
 
 interface StationTransferOption extends TransferOption {
@@ -27,6 +27,15 @@ const emit = defineEmits<{
 const searchQuery = ref('')
 const selectedProvince = ref('')
 const localSelectedIds = ref<string[]>([])
+const transferItemHeight = 84
+
+const transferThemeOverrides: GlobalThemeOverrides = {
+  Transfer: {
+    itemHeightSmall: `${transferItemHeight}px`,
+    itemHeightMedium: `${transferItemHeight}px`,
+    itemHeightLarge: `${transferItemHeight}px`,
+  },
+}
 
 const selectedIdSet = computed(() => new Set(localSelectedIds.value))
 
@@ -163,7 +172,7 @@ const handleConfirm = () => {
           </div>
 
           <div class="transfer-wrapper">
-            <NConfigProvider :locale="zhCN">
+            <NConfigProvider :locale="zhCN" :theme-overrides="transferThemeOverrides">
               <NTransfer
                 v-model:value="localSelectedIds"
                 class="station-transfer"
@@ -417,16 +426,19 @@ const handleConfirm = () => {
 }
 
 .station-transfer :deep(.n-transfer-list-item) {
-  min-height: 74px;
-  margin: 0.28rem 0.45rem;
+  height: 84px;
+  min-height: 84px;
+  margin: 0;
   padding: 0;
   color: rgba(255, 255, 255, 0.92) !important;
   transition: color 0.2s ease;
 }
 
 .station-transfer :deep(.n-transfer-list-item__background) {
-  left: 0;
-  right: 0;
+  left: 0.45rem;
+  right: 0.45rem;
+  top: 0.28rem;
+  bottom: 0.28rem;
   background: transparent !important;
   border-radius: 13px;
   border: 1px solid transparent;

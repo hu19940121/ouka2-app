@@ -42,9 +42,14 @@ fn next_stream_request_id(station_id: &str) -> String {
 fn kill_stream_process(process_id: u32) {
     #[cfg(target_os = "windows")]
     {
-        let _ = std::process::Command::new("taskkill")
-            .args(["/F", "/PID", &process_id.to_string()])
-            .output();
+        use std::os::windows::process::CommandExt;
+
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        let mut cmd = std::process::Command::new("taskkill");
+        cmd.args(["/F", "/PID", &process_id.to_string()])
+            .creation_flags(CREATE_NO_WINDOW);
+
+        let _ = cmd.output();
     }
     #[cfg(not(target_os = "windows"))]
     {
