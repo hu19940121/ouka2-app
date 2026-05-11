@@ -19,6 +19,17 @@ export interface ServerStatus {
     total_stations: number
 }
 
+// 诊断日志
+export interface DiagnosticLogEntry {
+    time: string
+    level: 'debug' | 'info' | 'warn' | 'error'
+    module: 'app' | 'server' | 'stream' | 'ffmpeg' | 'api' | 'diagnostics' | string
+    message: string
+    stationId?: string
+    stationName?: string
+    detail?: string
+}
+
 // 爬虫进度
 export interface CrawlProgress {
     current: number

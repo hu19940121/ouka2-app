@@ -6,6 +6,7 @@ import AudioPlayer from './components/AudioPlayer.vue'
 import StatusBar from './components/StatusBar.vue'
 import CrawlProgress from './components/CrawlProgress.vue'
 import InstallStationsDialog from './components/InstallStationsDialog.vue'
+import LogPanel from './components/LogPanel.vue'
 import type { Station } from './types'
 
 const store = useRadioStore()
@@ -26,6 +27,7 @@ const customUrl = ref('')
 const isAddingCustom = ref(false)
 const showInstallDialog = ref(false)
 const isInstalling = ref(false)
+const showLogPanel = ref(false)
 
 // 显示提示
 const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
@@ -85,6 +87,16 @@ const handleStopServer = async () => {
   playerKey.value++
   await store.stopServer()
   showToast('服务器已停止', 'info')
+}
+
+// 打开实时日志
+const handleOpenLogs = () => {
+  showLogPanel.value = true
+}
+
+// 清空实时日志
+const handleClearLogs = async () => {
+  await store.clearDiagnosticLogs()
 }
 
 // 刷新电台数据
@@ -184,6 +196,8 @@ const currentStreamUrl = computed(() => {
 
 // 初始化
 onMounted(async () => {
+  await store.initDiagnosticLogs()
+
   // 检查 FFmpeg
   await store.checkFfmpeg()
 
@@ -306,10 +320,20 @@ onMounted(async () => {
       :station-count="store.allStations.length"
       :selected-station-count="store.selectedStationCount"
       :ffmpeg-status="store.ffmpegStatus"
+      :log-count="store.diagnosticLogs.length"
+      :error-log-count="store.diagnosticErrorCount"
       @start="handleStartServer"
       @stop="handleStopServer"
       @crawl="handleCrawl"
       @install="handleInstall"
+      @logs="handleOpenLogs"
+    />
+
+    <LogPanel
+      :visible="showLogPanel"
+      :logs="store.diagnosticLogs"
+      @close="showLogPanel = false"
+      @clear="handleClearLogs"
     />
 
     <!-- 爬虫进度 -->

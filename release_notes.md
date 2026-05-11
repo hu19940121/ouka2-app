@@ -1,14 +1,20 @@
-# 🎉 v0.1.4 - 播放与安装列表体验修复
+# 🎉 v0.1.5 - 实时诊断日志
+
+## ✨ 新增
+
+- 新增实时诊断日志面板，可在状态栏直接打开查看运行状态
+- 支持按日志级别和模块筛选，并可一键复制或清空日志
+- 播放链路新增关键节点日志：服务器启动、播放请求、真实流地址刷新、FFmpeg 启动、首个音频包输出
+- 捕获 FFmpeg 异常输出，方便定位源地址不可达、连接超时、格式不兼容等问题
 
 ## 🔧 改进
 
-- 切换电台播放时不再闪出黑色命令行窗口
-- 修复安装列表弹窗中，右侧待安装电台列表持续滚动时的抖动问题
-- 保留待安装电台项的 hover 高亮效果
+- 过滤 FFmpeg 正常播放进度心跳，避免日志面板被 `size/time/bitrate/speed` 信息刷屏
+- 当 FFmpeg 启动后 10 秒内没有音频输出时，会记录明确的诊断提示
+- 服务器端口占用、自动切换端口、活动流停止等状态会写入诊断日志
 
 ## 📦 下载
 
 | 平台 | 下载 |
 | --- | --- |
-| Windows x64 | [ETS2-CN-Radio_0.1.4_x64-setup.exe](https://github.com/hu19940121/ouka2-app/releases/download/v0.1.4/ETS2-CN-Radio_0.1.4_x64-setup.exe) |
-
+| Windows x64 | [ETS2-CN-Radio_0.1.5_x64-setup.exe](https://github.com/hu19940121/ouka2-app/releases/download/v0.1.5/ETS2-CN-Radio_0.1.5_x64-setup.exe) |

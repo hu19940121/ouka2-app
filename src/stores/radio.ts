@@ -1,13 +1,14 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { listen } from '@tauri-apps/api/event'
+import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import type {
     Station,
     ServerStatus,
     CrawlProgress,
     ProvinceStats,
     InstallSelectionState,
+    DiagnosticLogEntry,
 } from '../types'
 
 export const CUSTOM_STATION_FILTER = '__custom__'
@@ -29,6 +30,8 @@ export const useRadioStore = defineStore('radio', () => {
     const ffmpegStatus = ref<string | null>(null)
     const selectedStationIds = ref<string[]>([])
     const hasSavedInstallSelection = ref(false)
+    const diagnosticLogs = ref<DiagnosticLogEntry[]>([])
+    let unlistenDiagnosticLogs: UnlistenFn | null = null
 
     // 筛选条件
     const searchQuery = ref('')
@@ -86,6 +89,10 @@ export const useRadioStore = defineStore('radio', () => {
             .map(id => stationMap.get(id))
             .filter((station): station is Station => Boolean(station))
     })
+
+    const diagnosticErrorCount = computed(() =>
+        diagnosticLogs.value.filter(log => log.level === 'error').length
+    )
 
     const sanitizeStationIds = (stationIds: string[]) => {
         const availableIds = new Set(allStations.value.map(station => station.id))
@@ -177,6 +184,23 @@ export const useRadioStore = defineStore('radio', () => {
         } catch (e) {
             serverStatus.value.running = false
         }
+    }
+
+    // 初始化实时诊断日志
+    const initDiagnosticLogs = async () => {
+        diagnosticLogs.value = await invoke<DiagnosticLogEntry[]>('get_diagnostic_logs')
+
+        if (unlistenDiagnosticLogs) return
+
+        unlistenDiagnosticLogs = await listen<DiagnosticLogEntry>('diagnostic-log', (event) => {
+            diagnosticLogs.value = [...diagnosticLogs.value, event.payload].slice(-1000)
+        })
+    }
+
+    // 清空诊断日志
+    const clearDiagnosticLogs = async () => {
+        await invoke('clear_diagnostic_logs')
+        diagnosticLogs.value = await invoke<DiagnosticLogEntry[]>('get_diagnostic_logs')
     }
 
     // 生成 SII 文件
@@ -319,6 +343,7 @@ export const useRadioStore = defineStore('radio', () => {
         error,
         ffmpegStatus,
         selectedStationIds,
+        diagnosticLogs,
         searchQuery,
         selectedProvince,
         // 计算属性
@@ -327,6 +352,7 @@ export const useRadioStore = defineStore('radio', () => {
         provinces,
         selectedStationCount,
         selectedStations,
+        diagnosticErrorCount,
         // 方法
         getStreamUrl,
         loadStations,
@@ -335,6 +361,8 @@ export const useRadioStore = defineStore('radio', () => {
         stopServer,
         stopActiveStreams,
         refreshServerStatus,
+        initDiagnosticLogs,
+        clearDiagnosticLogs,
         generateSii,
         installToEts2,
         getEts2Paths,

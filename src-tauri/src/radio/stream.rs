@@ -14,7 +14,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::{
-    atomic::{AtomicU64, Ordering},
+    atomic::{AtomicBool, AtomicU64, Ordering},
     Arc,
 };
 use tokio::io::AsyncReadExt;
@@ -23,6 +23,7 @@ use tokio::sync::RwLock;
 use tokio_stream::wrappers::ReceiverStream;
 use tower_http::cors::{Any, CorsLayer};
 
+use crate::diagnostics::DiagnosticLogger;
 use crate::radio::api::RadioApi;
 use crate::radio::models::{ServerStatus, Station};
 
@@ -37,6 +38,70 @@ pub struct ActiveStream {
 fn next_stream_request_id(station_id: &str) -> String {
     let id = NEXT_STREAM_REQUEST_ID.fetch_add(1, Ordering::Relaxed);
     format!("{}-{}", station_id, id)
+}
+
+fn is_ffmpeg_noise_line(line: &str) -> bool {
+    let trimmed = line.trim();
+    if trimmed.is_empty() {
+        return true;
+    }
+
+    let lower = trimmed.to_ascii_lowercase();
+
+    // FFmpeg 正常播放时会持续把进度写到 stderr，这类心跳不具备诊断价值。
+    if lower.starts_with("size=") || (lower.contains("bitrate=") && lower.contains("speed=")) {
+        return true;
+    }
+
+    // 过滤启动 banner 和常规媒体信息，避免日志面板被无关内容淹没。
+    lower.starts_with("ffmpeg version")
+        || lower.starts_with("built with")
+        || lower.starts_with("configuration:")
+        || lower.starts_with("libav")
+        || lower.starts_with("input #")
+        || lower.starts_with("output #")
+        || lower.starts_with("metadata:")
+        || lower.starts_with("stream #")
+        || lower.starts_with("press [q]")
+        || lower.starts_with("encoder")
+        || lower.starts_with("muxing overhead")
+}
+
+fn ffmpeg_diagnostic_level(line: &str) -> Option<&'static str> {
+    if is_ffmpeg_noise_line(line) {
+        return None;
+    }
+
+    let lower = line.to_ascii_lowercase();
+    let is_error = [
+        "error",
+        "failed",
+        "timed out",
+        "timeout",
+        "refused",
+        "forbidden",
+        "not found",
+        "invalid",
+        "unable",
+        "could not",
+        "no such",
+        "server returned",
+        "http error",
+        "i/o error",
+        "403",
+        "404",
+        "500",
+        "connection",
+        "protocol not found",
+    ]
+    .iter()
+    .any(|keyword| lower.contains(keyword));
+
+    if is_error {
+        Some("error")
+    } else {
+        None
+    }
 }
 
 fn kill_stream_process(process_id: u32) {
@@ -71,16 +136,19 @@ pub struct ServerState {
     pub ffmpeg_path: PathBuf,
     /// API 客户端（用于刷新流地址）
     pub api: RadioApi,
+    /// 诊断日志
+    pub logger: DiagnosticLogger,
 }
 
 impl ServerState {
-    pub fn new(port: u16, ffmpeg_path: PathBuf) -> Self {
+    pub fn new(port: u16, ffmpeg_path: PathBuf, logger: DiagnosticLogger) -> Self {
         Self {
             stations: RwLock::new(HashMap::new()),
             active_streams: RwLock::new(HashMap::new()),
             port: RwLock::new(port),
             ffmpeg_path,
             api: RadioApi::new(),
+            logger,
         }
     }
 
@@ -117,6 +185,14 @@ impl ServerState {
                 request_id,
                 stream.station_id,
                 stream.process_id
+            );
+            self.logger.push(
+                "info",
+                "stream",
+                format!("停止活动流进程 pid={}", stream.process_id),
+                Some(stream.station_id.clone()),
+                None::<String>,
+                Some(request_id),
             );
             kill_stream_process(stream.process_id);
         }
@@ -171,10 +247,10 @@ pub struct StreamServer {
 
 impl StreamServer {
     /// 创建新的服务器实例
-    pub fn new(port: u16, ffmpeg_path: PathBuf) -> Self {
+    pub fn new(port: u16, ffmpeg_path: PathBuf, logger: DiagnosticLogger) -> Self {
         Self {
             port,
-            state: Arc::new(ServerState::new(port, ffmpeg_path)),
+            state: Arc::new(ServerState::new(port, ffmpeg_path, logger)),
             shutdown_tx: None,
             is_running: false,
         }
@@ -217,12 +293,21 @@ impl StreamServer {
                 Ok(l) => {
                     if attempt > 0 {
                         log::info!("端口 {} 被占用，自动切换到 {}", self.port, port);
+                        self.state.logger.info(
+                            "server",
+                            format!("端口 {} 被占用，自动切换到 {}", self.port, port),
+                        );
                     }
                     listener = Some(l);
                     break;
                 }
                 Err(e) => {
                     log::warn!("端口 {} 不可用: {}", port, e);
+                    self.state.logger.warn(
+                        "server",
+                        format!("端口 {} 不可用", port),
+                        Some(e.to_string()),
+                    );
                     port += 1;
                 }
             }
@@ -246,6 +331,10 @@ impl StreamServer {
         }
 
         log::info!("流媒体服务器已启动: http://127.0.0.1:{}", port);
+        self.state.logger.info(
+            "server",
+            format!("流媒体服务器已启动: http://127.0.0.1:{}", port),
+        );
 
         // 构建路由
         let app = Router::new()
@@ -282,6 +371,7 @@ impl StreamServer {
 
             self.is_running = false;
             log::info!("流媒体服务器已停止");
+            self.state.logger.info("server", "流媒体服务器已停止");
         }
     }
 }
@@ -300,9 +390,25 @@ async fn handle_stream(
     let station = match station {
         Some(s) => s,
         None => {
+            state.logger.push(
+                "warn",
+                "stream",
+                "播放请求失败：电台未找到",
+                Some(station_id.clone()),
+                None::<String>,
+                None::<String>,
+            );
             return (StatusCode::NOT_FOUND, "电台未找到").into_response();
         }
     };
+    state.logger.push(
+        "info",
+        "stream",
+        "收到播放请求",
+        Some(station_id.clone()),
+        Some(station.name.clone()),
+        Some(format!("省份: {}", station.province)),
+    );
 
     // WebView 可能会对同一个 audio src 发起两次 GET。
     // 新请求到来时先关闭该电台已有流，确保同一电台最终只保留一个 FFmpeg。
@@ -311,14 +417,38 @@ async fn handle_stream(
     // 获取流地址：自定义电台直接用缓存地址，普通电台刷新
     let stream_url = if station.is_custom {
         log::debug!("custom station stream url");
+        state.logger.push(
+            "info",
+            "stream",
+            "使用自定义电台流地址",
+            Some(station_id.clone()),
+            Some(station.name.clone()),
+            None::<String>,
+        );
         match station.get_best_stream_url() {
             Some(url) => url.to_string(),
             None => {
+                state.logger.push(
+                    "error",
+                    "stream",
+                    "自定义电台无流地址",
+                    Some(station_id.clone()),
+                    Some(station.name.clone()),
+                    None::<String>,
+                );
                 return (StatusCode::INTERNAL_SERVER_ERROR, "自定义电台无流地址").into_response();
             }
         }
     } else {
         // 刷新流地址
+        state.logger.push(
+            "info",
+            "api",
+            "正在刷新真实播放地址",
+            Some(station_id.clone()),
+            Some(station.name.clone()),
+            None::<String>,
+        );
         match state
             .api
             .refresh_stream_url(&station_id, &station.province)
@@ -326,23 +456,63 @@ async fn handle_stream(
         {
             Ok(Some(url)) => {
                 log::debug!("refreshed stream url");
+                state.logger.push(
+                    "info",
+                    "api",
+                    "真实播放地址刷新成功",
+                    Some(station_id.clone()),
+                    Some(station.name.clone()),
+                    None::<String>,
+                );
                 url
             }
             Ok(None) => {
                 // 使用缓存的地址
                 log::warn!("刷新流地址失败，使用缓存地址");
+                state.logger.push(
+                    "warn",
+                    "api",
+                    "刷新真实播放地址失败，尝试使用缓存地址",
+                    Some(station_id.clone()),
+                    Some(station.name.clone()),
+                    None::<String>,
+                );
                 match station.get_best_stream_url() {
                     Some(url) => url.to_string(),
                     None => {
+                        state.logger.push(
+                            "error",
+                            "stream",
+                            "无可用流地址",
+                            Some(station_id.clone()),
+                            Some(station.name.clone()),
+                            None::<String>,
+                        );
                         return (StatusCode::INTERNAL_SERVER_ERROR, "无可用流地址").into_response();
                     }
                 }
             }
             Err(e) => {
                 log::error!("刷新流地址失败: {}", e);
+                state.logger.push(
+                    "warn",
+                    "api",
+                    "刷新真实播放地址异常，尝试使用缓存地址",
+                    Some(station_id.clone()),
+                    Some(station.name.clone()),
+                    Some(e.to_string()),
+                );
                 match station.get_best_stream_url() {
                     Some(url) => url.to_string(),
                     None => {
+                        state.logger.push(
+                            "error",
+                            "stream",
+                            "无可用流地址",
+                            Some(station_id.clone()),
+                            Some(station.name.clone()),
+                            Some(e.to_string()),
+                        );
                         return (StatusCode::INTERNAL_SERVER_ERROR, "无可用流地址").into_response();
                     }
                 }
@@ -359,6 +529,14 @@ async fn handle_stream(
         Ok(child) => child,
         Err(e) => {
             log::error!("启动 FFmpeg 失败: {}", e);
+            state.logger.push(
+                "error",
+                "ffmpeg",
+                "启动 FFmpeg 失败",
+                Some(station_id.clone()),
+                Some(station.name.clone()),
+                Some(e.to_string()),
+            );
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 format!("启动 FFmpeg 失败: {}", e),
@@ -370,6 +548,14 @@ async fn handle_stream(
     // 记录活动进程。使用请求级 ID，避免同一电台连续播放时互相覆盖。
     let request_id = next_stream_request_id(&station_id);
     if let Some(process_id) = child.id() {
+        state.logger.push(
+            "info",
+            "ffmpeg",
+            format!("FFmpeg 已启动，pid={}", process_id),
+            Some(station_id.clone()),
+            Some(station.name.clone()),
+            None::<String>,
+        );
         state.active_streams.write().await.insert(
             request_id.clone(),
             ActiveStream {
@@ -384,14 +570,18 @@ async fn handle_stream(
 
     // 获取输出流
     let stdout = child.stdout.take().expect("无法获取 stdout");
+    let stderr = child.stderr.take();
 
     // 创建流式响应
     let (tx, rx) = tokio::sync::mpsc::channel::<Result<Vec<u8>, std::io::Error>>(32);
+    let first_audio_packet = Arc::new(AtomicBool::new(false));
 
     // 在后台读取 FFmpeg 输出
     let station_id_clone = station_id.clone();
+    let station_name_clone = station.name.clone();
     let request_id_clone = request_id.clone();
     let state_clone = state.clone();
+    let first_audio_packet_clone = first_audio_packet.clone();
     tokio::spawn(async move {
         let mut reader = tokio::io::BufReader::new(stdout);
         let mut buffer = [0u8; 4096];
@@ -400,12 +590,30 @@ async fn handle_stream(
             match reader.read(&mut buffer).await {
                 Ok(0) => break, // EOF
                 Ok(n) => {
+                    if !first_audio_packet_clone.swap(true, Ordering::Relaxed) {
+                        state_clone.logger.push(
+                            "info",
+                            "ffmpeg",
+                            "已收到首个音频数据包",
+                            Some(station_id_clone.clone()),
+                            Some(station_name_clone.clone()),
+                            None::<String>,
+                        );
+                    }
                     if tx.send(Ok(buffer[..n].to_vec())).await.is_err() {
                         break; // 接收端已关闭
                     }
                 }
                 Err(e) => {
                     log::error!("读取 FFmpeg 输出失败: {}", e);
+                    state_clone.logger.push(
+                        "error",
+                        "ffmpeg",
+                        "读取 FFmpeg 输出失败",
+                        Some(station_id_clone.clone()),
+                        Some(station_name_clone.clone()),
+                        Some(e.to_string()),
+                    );
                     let _ = tx.send(Err(e)).await;
                     break;
                 }
@@ -420,7 +628,77 @@ async fn handle_stream(
             .await
             .remove(&request_id_clone);
         log::debug!("stream closed: {} / {}", request_id_clone, station_id_clone);
+        state_clone.logger.push(
+            "info",
+            "stream",
+            "播放流已关闭",
+            Some(station_id_clone),
+            Some(station_name_clone),
+            Some(request_id_clone),
+        );
     });
+
+    if let Some(stderr) = stderr {
+        let station_id_clone = station_id.clone();
+        let station_name_clone = station.name.clone();
+        let state_clone = state.clone();
+        tokio::spawn(async move {
+            let mut reader = tokio::io::BufReader::new(stderr);
+            let mut buffer = [0u8; 1024];
+
+            loop {
+                match reader.read(&mut buffer).await {
+                    Ok(0) => break,
+                    Ok(n) => {
+                        let detail = String::from_utf8_lossy(&buffer[..n]).replace('\r', "\n");
+                        for line in detail.lines() {
+                            if let Some(level) = ffmpeg_diagnostic_level(line) {
+                                state_clone.logger.push(
+                                    level,
+                                    "ffmpeg",
+                                    "FFmpeg 异常输出",
+                                    Some(station_id_clone.clone()),
+                                    Some(station_name_clone.clone()),
+                                    Some(line.trim().chars().take(600).collect::<String>()),
+                                );
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        state_clone.logger.push(
+                            "error",
+                            "ffmpeg",
+                            "读取 FFmpeg 诊断输出失败",
+                            Some(station_id_clone.clone()),
+                            Some(station_name_clone.clone()),
+                            Some(e.to_string()),
+                        );
+                        break;
+                    }
+                }
+            }
+        });
+    }
+
+    {
+        let station_id_clone = station_id.clone();
+        let station_name_clone = station.name.clone();
+        let state_clone = state.clone();
+        let first_audio_packet_clone = first_audio_packet.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
+            if !first_audio_packet_clone.load(Ordering::Relaxed) {
+                state_clone.logger.push(
+                    "warn",
+                    "ffmpeg",
+                    "FFmpeg 启动后 10 秒内没有输出音频，可能是源地址不可达或格式不兼容",
+                    Some(station_id_clone),
+                    Some(station_name_clone),
+                    None::<String>,
+                );
+            }
+        });
+    }
 
     // 构建响应
     let stream = ReceiverStream::new(rx);
@@ -470,7 +748,7 @@ fn spawn_ffmpeg(ffmpeg_path: &PathBuf, stream_url: &str) -> anyhow::Result<Child
     ])
     .stdin(Stdio::null())
     .stdout(Stdio::piped())
-    .stderr(Stdio::null())
+    .stderr(Stdio::piped())
     .kill_on_drop(true);
 
     // Windows: 隐藏控制台窗口
@@ -488,6 +766,7 @@ fn spawn_ffmpeg(ffmpeg_path: &PathBuf, stream_url: &str) -> anyhow::Result<Child
 
 /// 健康检查端点
 async fn handle_health(State(state): State<Arc<ServerState>>) -> impl IntoResponse {
+    state.logger.info("server", "收到健康检查请求");
     let status = state.get_status().await;
     axum::Json(status)
 }

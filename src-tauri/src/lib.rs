@@ -3,6 +3,7 @@
 //! 将云听电台转换为欧卡2可用格式的桌面应用
 
 mod commands;
+mod diagnostics;
 mod radio;
 mod utils;
 
@@ -13,6 +14,7 @@ use tokio::sync::Mutex;
 
 use commands::custom::merge_custom_stations;
 use commands::*;
+use diagnostics::DiagnosticLogger;
 use radio::{Crawler, StreamServer};
 use utils::{check_ffmpeg, FFmpegManager};
 
@@ -20,13 +22,20 @@ use utils::{check_ffmpeg, FFmpegManager};
 pub struct AppState {
     pub crawler: Crawler,
     pub server: StreamServer,
+    pub logger: DiagnosticLogger,
 }
 
 impl AppState {
-    pub fn new(data_dir: PathBuf, ffmpeg_path: PathBuf, server_port: u16) -> Self {
+    pub fn new(
+        data_dir: PathBuf,
+        ffmpeg_path: PathBuf,
+        server_port: u16,
+        logger: DiagnosticLogger,
+    ) -> Self {
         Self {
             crawler: Crawler::new(data_dir),
-            server: StreamServer::new(server_port, ffmpeg_path),
+            server: StreamServer::new(server_port, ffmpeg_path, logger.clone()),
+            logger,
         }
     }
 }
@@ -46,14 +55,23 @@ pub fn run() {
             std::fs::create_dir_all(&data_dir).ok();
 
             log::debug!("app data dir: {:?}", data_dir);
+            let logger = DiagnosticLogger::new();
+            logger.attach_app(app.handle().clone());
+            logger.info("app", "应用启动，诊断日志已初始化");
 
             // 检测 FFmpeg
             let resource_dir = app.path().resource_dir().ok();
             let ffmpeg_path = FFmpegManager::detect_ffmpeg(resource_dir.as_ref())
                 .unwrap_or_else(|| PathBuf::from("ffmpeg"));
+            logger.info("ffmpeg", format!("FFmpeg 路径: {}", ffmpeg_path.display()));
 
             // 创建应用状态
-            let state = Arc::new(Mutex::new(AppState::new(data_dir, ffmpeg_path, 3000)));
+            let state = Arc::new(Mutex::new(AppState::new(
+                data_dir,
+                ffmpeg_path,
+                3000,
+                logger,
+            )));
 
             // 管理状态
             app.manage(state.clone());
@@ -73,6 +91,7 @@ pub fn run() {
                             .load_stations(stations_for_server)
                             .await;
                         log::debug!("loaded saved stations");
+                        state.logger.info("app", "已加载本地保存的电台数据");
                     }
                 }
             });
@@ -90,6 +109,8 @@ pub fn run() {
             stop_server,
             stop_active_streams,
             get_server_status,
+            get_diagnostic_logs,
+            clear_diagnostic_logs,
             // 配置命令
             generate_sii,
             generate_sii_with_selection,

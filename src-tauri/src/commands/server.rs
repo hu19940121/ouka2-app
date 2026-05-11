@@ -12,6 +12,7 @@ use crate::AppState;
 #[tauri::command]
 pub async fn start_server(state: State<'_, Arc<Mutex<AppState>>>) -> Result<(), String> {
     let mut state = state.lock().await;
+    state.logger.info("server", "收到启动服务器请求");
 
     // 确保电台数据已加载到服务器，并合并自定义电台。
     let mut stations = state.crawler.get_stations().await;
@@ -28,6 +29,9 @@ pub async fn start_server(state: State<'_, Arc<Mutex<AppState>>>) -> Result<(), 
     let custom_count = stations.len().saturating_sub(before_len);
     if custom_count > 0 {
         log::debug!("合并自定义电台: {}", custom_count);
+        state
+            .logger
+            .info("server", format!("已合并自定义电台: {}", custom_count));
     }
 
     state.server.state().load_stations(stations).await;
@@ -37,6 +41,10 @@ pub async fn start_server(state: State<'_, Arc<Mutex<AppState>>>) -> Result<(), 
 
     let status = state.server.state().get_status().await;
     log::info!("服务器已启动，可用电台: {}", status.total_stations);
+    state.logger.info(
+        "server",
+        format!("服务器可用电台: {}", status.total_stations),
+    );
 
     Ok(())
 }
@@ -45,6 +53,7 @@ pub async fn start_server(state: State<'_, Arc<Mutex<AppState>>>) -> Result<(), 
 #[tauri::command]
 pub async fn stop_server(state: State<'_, Arc<Mutex<AppState>>>) -> Result<(), String> {
     let mut state = state.lock().await;
+    state.logger.info("server", "收到停止服务器请求");
     state.server.stop().await;
     log::info!("服务器已停止");
     Ok(())
@@ -54,6 +63,7 @@ pub async fn stop_server(state: State<'_, Arc<Mutex<AppState>>>) -> Result<(), S
 #[tauri::command]
 pub async fn stop_active_streams(state: State<'_, Arc<Mutex<AppState>>>) -> Result<(), String> {
     let state = state.lock().await;
+    state.logger.info("stream", "收到停止活动流请求");
     state.server.stop_active_streams().await;
     log::debug!("已请求停止所有活动流");
     Ok(())

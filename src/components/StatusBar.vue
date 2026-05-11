@@ -7,6 +7,8 @@ const props = defineProps<{
   stationCount: number
   selectedStationCount: number
   ffmpegStatus: string | null
+  logCount: number
+  errorLogCount: number
 }>()
 
 defineEmits<{
@@ -15,6 +17,7 @@ defineEmits<{
   refresh: []
   crawl: []
   install: []
+  logs: []
 }>()
 
 const statusText = computed(() => {
@@ -62,6 +65,14 @@ const statusColor = computed(() => {
         @click="$emit('stop')"
       >
         ⏹ 停止服务器
+      </button>
+
+      <button
+        :class="['btn', 'btn-logs', { 'has-errors': errorLogCount > 0 }]"
+        @click="$emit('logs')"
+        title="打开实时诊断日志"
+      >
+        📋 日志 {{ errorLogCount > 0 ? errorLogCount : logCount }}
       </button>
 
       <button
@@ -203,6 +214,22 @@ const statusColor = computed(() => {
 
 .btn-secondary:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.2);
+}
+
+.btn-logs {
+  background: rgba(14, 165, 233, 0.14);
+  color: rgba(224, 242, 254, 0.95);
+  border: 1px solid rgba(125, 211, 252, 0.22);
+}
+
+.btn-logs:hover:not(:disabled) {
+  background: rgba(14, 165, 233, 0.24);
+}
+
+.btn-logs.has-errors {
+  background: rgba(248, 113, 113, 0.16);
+  border-color: rgba(248, 113, 113, 0.35);
+  color: #fecaca;
 }
 
 .btn-primary {
