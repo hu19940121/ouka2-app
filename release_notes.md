@@ -30,3 +30,4 @@
 | 平台 | 下载 |
 | --- | --- |
 | Windows x64 | [ETS2-CN-Radio_0.2.0_x64-setup.exe](https://github.com/hu19940121/ouka2-app/releases/download/v0.2/ETS2-CN-Radio_0.2.0_x64-setup.exe) |
+| macOS Apple Silicon | [ETS2-CN-Radio_0.2.0_aarch64.dmg](https://github.com/hu19940121/ouka2-app/releases/download/v0.2/ETS2-CN-Radio_0.2.0_aarch64.dmg) |
