@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { NButton, NEmpty, NSelect, NTag, type SelectOption } from 'naive-ui'
+import { Copy, Trash2, X } from 'lucide-vue-next'
 import type { DiagnosticLogEntry } from '../types'
 
 const props = defineProps<{
@@ -20,6 +22,17 @@ const logBodyRef = ref<HTMLElement | null>(null)
 const modules = computed(() => {
   return Array.from(new Set(props.logs.map(log => log.module))).sort()
 })
+const levelOptions: SelectOption[] = [
+  { label: '全部级别', value: 'all' },
+  { label: '错误', value: 'error' },
+  { label: '警告', value: 'warn' },
+  { label: '信息', value: 'info' },
+  { label: '调试', value: 'debug' },
+]
+const moduleOptions = computed<SelectOption[]>(() => [
+  { label: '全部模块', value: 'all' },
+  ...modules.value.map((module) => ({ label: module, value: module })),
+])
 
 const filteredLogs = computed(() => {
   return props.logs.filter((log) => {
@@ -30,6 +43,11 @@ const filteredLogs = computed(() => {
 })
 
 const latestLevel = computed(() => props.logs[props.logs.length - 1]?.level ?? 'info')
+const latestType = computed(() => {
+  if (latestLevel.value === 'error') return 'error'
+  if (latestLevel.value === 'warn') return 'warning'
+  return 'success'
+})
 
 const formatLog = (log: DiagnosticLogEntry) => {
   const station = log.stationName ? ` ${log.stationName}` : ''
@@ -62,44 +80,41 @@ watch(
     <aside v-if="visible" class="log-panel">
       <div class="log-header">
         <div>
-          <p class="eyebrow">实时诊断</p>
           <h2>运行日志</h2>
+          <p>查看服务器、抓取和安装过程中的诊断信息</p>
         </div>
-        <button class="icon-button" @click="emit('close')" title="关闭日志">×</button>
+        <NButton quaternary circle @click="emit('close')" title="关闭日志">
+          <template #icon>
+            <X :size="18" />
+          </template>
+        </NButton>
       </div>
 
       <div class="log-summary">
-        <div :class="['summary-pulse', `summary-${latestLevel}`]"></div>
+        <NTag :type="latestType" round size="small">{{ latestLevel.toUpperCase() }}</NTag>
         <span>{{ logs.length }} 条记录</span>
         <span>{{ filteredLogs.length }} 条匹配</span>
       </div>
 
       <div class="log-tools">
-        <select v-model="levelFilter" class="tool-select">
-          <option value="all">全部级别</option>
-          <option value="error">错误</option>
-          <option value="warn">警告</option>
-          <option value="info">信息</option>
-          <option value="debug">调试</option>
-        </select>
-
-        <select v-model="moduleFilter" class="tool-select">
-          <option value="all">全部模块</option>
-          <option v-for="module in modules" :key="module" :value="module">
-            {{ module }}
-          </option>
-        </select>
-
-        <button class="tool-button" @click="copyLogs">
+        <NSelect v-model:value="levelFilter" :options="levelOptions" />
+        <NSelect v-model:value="moduleFilter" :options="moduleOptions" />
+        <NButton secondary @click="copyLogs">
+          <template #icon>
+            <Copy :size="16" />
+          </template>
           {{ copied ? '已复制' : '复制' }}
-        </button>
-        <button class="tool-button danger" @click="emit('clear')">清空</button>
+        </NButton>
+        <NButton secondary type="error" @click="emit('clear')">
+          <template #icon>
+            <Trash2 :size="16" />
+          </template>
+          清空
+        </NButton>
       </div>
 
       <div ref="logBodyRef" class="log-body">
-        <div v-if="filteredLogs.length === 0" class="empty-log">
-          暂无匹配日志
-        </div>
+        <NEmpty v-if="filteredLogs.length === 0" description="暂无匹配日志" class="empty-log" />
 
         <article
           v-for="(log, index) in filteredLogs"
@@ -132,128 +147,62 @@ watch(
   z-index: 180;
   display: flex;
   flex-direction: column;
-  background: rgba(11, 13, 30, 0.96);
-  border-left: 1px solid rgba(125, 211, 252, 0.22);
-  box-shadow: -24px 0 60px rgba(0, 0, 0, 0.45);
-  backdrop-filter: blur(18px);
+  background: #ffffff;
+  border-left: 1px solid #e3e6eb;
+  box-shadow: -18px 0 48px rgba(18, 28, 45, 0.16);
 }
 
 .log-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 1.25rem 1.35rem 1rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.eyebrow {
-  margin: 0 0 0.25rem;
-  color: #7dd3fc;
-  font-size: 0.75rem;
-  letter-spacing: 0;
+  gap: 16px;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid #e3e6eb;
+  background: #fbfcfd;
 }
 
 .log-header h2 {
   margin: 0;
-  color: #fff;
-  font-size: 1.25rem;
+  color: #151923;
+  font-size: 1.08rem;
+  font-weight: 800;
 }
 
-.icon-button {
-  width: 36px;
-  height: 36px;
-  border: none;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.82);
-  cursor: pointer;
-  font-size: 1.35rem;
-  line-height: 1;
-}
-
-.icon-button:hover {
-  background: rgba(255, 255, 255, 0.16);
+.log-header p {
+  margin: 4px 0 0;
+  color: #697181;
+  font-size: 0.82rem;
 }
 
 .log-summary {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.85rem 1.35rem;
-  color: rgba(255, 255, 255, 0.68);
+  gap: 10px;
+  padding: 12px 20px;
+  color: #697181;
   font-size: 0.86rem;
-}
-
-.summary-pulse {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: #7dd3fc;
-  box-shadow: 0 0 18px currentColor;
-}
-
-.summary-error {
-  background: #f87171;
-}
-
-.summary-warn {
-  background: #fbbf24;
-}
-
-.summary-info,
-.summary-debug {
-  background: #7dd3fc;
 }
 
 .log-tools {
   display: grid;
   grid-template-columns: 1fr 1fr auto auto;
-  gap: 0.6rem;
-  padding: 0 1.35rem 1rem;
-}
-
-.tool-select,
-.tool-button {
-  height: 36px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.07);
-  color: rgba(255, 255, 255, 0.9);
-  outline: none;
-}
-
-.tool-select {
-  padding: 0 0.65rem;
-}
-
-.tool-select option {
-  background: #14172f;
-  color: #fff;
-}
-
-.tool-button {
-  padding: 0 0.85rem;
-  cursor: pointer;
-}
-
-.tool-button:hover {
-  background: rgba(255, 255, 255, 0.14);
-}
-
-.tool-button.danger {
-  color: #fecaca;
-  border-color: rgba(248, 113, 113, 0.3);
+  gap: 8px;
+  padding: 0 20px 14px;
+  border-bottom: 1px solid #edf0f4;
 }
 
 .log-body {
   flex: 1;
   overflow-y: auto;
-  padding: 0.25rem 1.35rem 1.35rem;
+  padding: 0 20px 20px;
+  scrollbar-width: thin;
+  scrollbar-color: #c7ced8 #f1f3f6;
 }
 
 .log-row {
-  padding: 0.85rem 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  padding: 12px 0;
+  border-top: 1px solid #edf0f4;
 }
 
 .log-row:first-child {
@@ -267,36 +216,39 @@ watch(
   margin-bottom: 0.35rem;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.72rem;
-  color: rgba(255, 255, 255, 0.48);
+  color: #7a8493;
 }
 
 .log-level,
 .log-module {
-  padding: 0.08rem 0.38rem;
+  padding: 2px 6px;
   border-radius: 5px;
-  background: rgba(255, 255, 255, 0.08);
+  background: #f1f4f7;
+  color: #4f5968;
+  font-weight: 700;
 }
 
 .log-error .log-level {
-  color: #fecaca;
-  background: rgba(248, 113, 113, 0.2);
+  color: #b83232;
+  background: #fff1f1;
 }
 
 .log-warn .log-level {
-  color: #fde68a;
-  background: rgba(251, 191, 36, 0.18);
+  color: #9a620b;
+  background: #fff8ed;
 }
 
 .log-message {
-  color: rgba(255, 255, 255, 0.88);
-  font-size: 0.92rem;
+  color: #202633;
+  font-size: 0.9rem;
   line-height: 1.45;
 }
 
 .station-name {
   display: inline-block;
   margin-left: 0.5rem;
-  color: #7dd3fc;
+  color: #2f8b4d;
+  font-weight: 700;
 }
 
 .log-detail {
@@ -304,19 +256,17 @@ watch(
   padding: 0.65rem;
   white-space: pre-wrap;
   word-break: break-word;
-  border-radius: 8px;
-  background: rgba(0, 0, 0, 0.26);
-  color: rgba(255, 255, 255, 0.66);
+  border: 1px solid #e4e8ef;
+  border-radius: 6px;
+  background: #f7f8fa;
+  color: #4f5968;
   font-size: 0.76rem;
   line-height: 1.45;
 }
 
 .empty-log {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  padding-top: 80px;
   height: 180px;
-  color: rgba(255, 255, 255, 0.45);
 }
 
 .log-panel-enter-active,

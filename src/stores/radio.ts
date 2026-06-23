@@ -250,11 +250,7 @@ export const useRadioStore = defineStore('radio', () => {
             return
         }
 
-        const defaultIds = allStations.value.map(station => station.id)
-        selectedStationIds.value = defaultIds
-        if (defaultIds.length > 0) {
-            await saveInstallSelection(defaultIds)
-        }
+        await saveInstallSelection([])
     }
 
     // 保存安装列表

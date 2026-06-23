@@ -1,29 +1,32 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { Copy, MoreVertical, Play, RadioTower, Trash2 } from 'lucide-vue-next'
 import type { Station } from '../types'
 
 const props = defineProps<{
   station: Station
   serverPort: number
+  selected: boolean
+  serverRunning: boolean
+  isCurrent: boolean
 }>()
 
 const emit = defineEmits<{
   play: [station: Station]
   copy: [url: string]
   delete: [station: Station]
+  'toggle-selection': [station: Station]
 }>()
 
 const streamUrl = computed(() => {
   return `http://127.0.0.1:${props.serverPort}/stream/${props.station.id}`
 })
 
-const handlePlay = () => {
-  emit('play', props.station)
-}
-
-const handleDelete = () => {
-  emit('delete', props.station)
-}
+const signalText = computed(() => {
+  if (props.station.is_custom) return '自定义'
+  if (props.station.subtitle) return props.station.subtitle
+  return '可用'
+})
 
 const handleCopy = async () => {
   try {
@@ -33,192 +36,304 @@ const handleCopy = async () => {
     console.error('复制失败:', e)
   }
 }
-
-// 获取电台类型图标
-const getTypeIcon = (name: string) => {
-  if (name.includes('新闻') || name.includes('之声')) return '📰'
-  if (name.includes('音乐') || name.includes('Music')) return '🎵'
-  if (name.includes('交通') || name.includes('高速')) return '🚗'
-  if (name.includes('经济') || name.includes('财经')) return '💰'
-  if (name.includes('体育')) return '⚽'
-  if (name.includes('文艺') || name.includes('故事')) return '📚'
-  return '📻'
-}
 </script>
 
 <template>
-  <div class="station-card">
-    <div class="station-image">
-      <img
-        v-if="station.image"
-        :src="station.image"
-        :alt="station.name"
-        @error="($event.target as HTMLImageElement).style.display = 'none'"
+  <div :class="['station-row', { 'is-selected': selected, 'is-current': isCurrent }]">
+    <label class="station-check" :title="selected ? '从安装队列移除' : '加入安装队列'">
+      <input
+        type="checkbox"
+        :checked="selected"
+        @change="emit('toggle-selection', station)"
       />
-      <span v-else class="station-icon">{{ getTypeIcon(station.name) }}</span>
+      <span class="check-visual"></span>
+    </label>
+
+    <div class="station-main">
+      <div class="station-title-row">
+        <h3 class="station-name">{{ station.name }}</h3>
+        <span v-if="isCurrent" class="playing-badge">
+          <RadioTower :size="14" />
+          正在播放
+        </span>
+      </div>
+      <p class="station-subtitle">{{ signalText }}</p>
     </div>
 
-    <div class="station-info">
-      <h3 class="station-name">{{ station.name }}</h3>
-      <p class="station-meta">
-        <span :class="['province-tag', { 'custom-tag': station.is_custom }]">{{ station.province }}</span>
-        <span v-if="station.subtitle" class="subtitle">{{ station.subtitle }}</span>
-      </p>
+    <span :class="['province-tag', { 'is-custom': station.is_custom }]">
+      {{ station.province }}
+    </span>
+
+    <span class="language-cell">国语</span>
+
+    <div class="station-quality" aria-label="信号状态">
+      <span class="signal-bars">
+        <i></i>
+        <i></i>
+        <i></i>
+      </span>
+      <span>{{ station.is_custom ? '手动源' : '良好' }}</span>
     </div>
 
     <div class="station-actions">
-      <button class="btn btn-play" @click="handlePlay" title="播放">
-        <span>▶</span>
+      <button
+        class="icon-button primary"
+        type="button"
+        :disabled="!serverRunning"
+        :title="serverRunning ? '播放' : '请先启动服务器'"
+        @click="emit('play', station)"
+      >
+        <Play :size="16" :fill="'currentColor'" />
       </button>
-      <button class="btn btn-copy" @click="handleCopy" title="复制地址">
-        <span>📋</span>
+      <button class="icon-button" type="button" title="复制地址" @click="handleCopy">
+        <Copy :size="17" />
       </button>
-      <button v-if="station.is_custom" class="btn btn-delete" @click="handleDelete" title="删除">
-        <span>🗑</span>
+      <button
+        v-if="station.is_custom"
+        class="icon-button danger"
+        type="button"
+        title="删除自定义电台"
+        @click="emit('delete', station)"
+      >
+        <Trash2 :size="16" />
+      </button>
+      <button v-else class="icon-button ghost" type="button" title="更多">
+        <MoreVertical :size="17" />
       </button>
     </div>
   </div>
 </template>
 
 <style scoped>
-.station-card {
-  display: flex;
+.station-row {
+  display: grid;
+  grid-template-columns: var(--station-table-columns);
   align-items: center;
-  gap: 1rem;
-  padding: 1rem;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  transition: all 0.3s ease;
+  gap: var(--station-table-gap);
+  min-width: var(--station-table-min-width);
+  min-height: 58px;
+  padding: 0 18px;
+  border-bottom: 1px solid #e6e9ee;
+  background: #ffffff;
+  color: #151923;
+  transition: background 0.18s ease;
 }
 
-.station-card:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(100, 180, 255, 0.3);
-  transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+.station-row:hover {
+  background: #f8faf8;
 }
 
-.station-image {
-  width: 60px;
-  height: 60px;
-  border-radius: 10px;
-  overflow: hidden;
-  background: linear-gradient(135deg, #1a1a2e, #16213e);
+.station-row.is-selected {
+  background: #fbfdfb;
+}
+
+.station-row.is-current {
+  background: #f3faf4;
+}
+
+.station-check {
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
+  cursor: pointer;
 }
 
-.station-image img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+.station-check input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
 }
 
-.station-icon {
-  font-size: 1.8rem;
+.check-visual {
+  width: 18px;
+  height: 18px;
+  border: 1px solid #c8ced8;
+  border-radius: 4px;
+  background: #fff;
+  transition: all 0.16s ease;
 }
 
-.station-info {
-  flex: 1;
+.station-check input:checked + .check-visual {
+  border-color: #2f9e55;
+  background: #2f9e55;
+  box-shadow: inset 0 0 0 4px #2f9e55;
+}
+
+.station-check input:checked + .check-visual::after {
+  content: '';
+  display: block;
+  width: 8px;
+  height: 5px;
+  margin: 4px 0 0 4px;
+  border-left: 2px solid white;
+  border-bottom: 2px solid white;
+  transform: rotate(-45deg);
+}
+
+.station-main {
+  min-width: 0;
+}
+
+.station-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   min-width: 0;
 }
 
 .station-name {
-  font-size: 1rem;
-  font-weight: 600;
-  color: #fff;
-  margin: 0 0 0.3rem 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.station-meta {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin: 0;
   min-width: 0;
-  font-size: 0.85rem;
-  color: rgba(255, 255, 255, 0.6);
+  margin: 0;
+  overflow: hidden;
+  color: #161a22;
+  font-size: 0.96rem;
+  font-weight: 760;
+  letter-spacing: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .province-tag {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
+  width: fit-content;
+  max-width: 108px;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #2f3642;
   flex-shrink: 0;
-  background: linear-gradient(135deg, #4facfe, #00f2fe);
-  color: #000;
-  padding: 0.15rem 0.5rem;
-  border-radius: 4px;
-  font-size: 0.75rem;
-  font-weight: 500;
-  line-height: 1.2;
+  font-size: 0.9rem;
+  font-weight: 560;
+  line-height: 1.35;
+  text-overflow: ellipsis;
   white-space: nowrap;
-  word-break: keep-all;
 }
 
-.subtitle {
-  flex: 1;
-  min-width: 0;
-  white-space: nowrap;
+.province-tag.is-custom {
+  color: #315f9d;
+}
+
+.playing-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 5px;
+  background: #e4f3e8;
+  color: #2b874c;
+  flex: 0 0 auto;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.station-subtitle {
+  margin: 4px 0 0;
   overflow: hidden;
+  color: #7b8492;
+  font-size: 0.8rem;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.language-cell {
+  color: #2f3642;
+  font-size: 0.9rem;
+}
+
+.station-quality {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  color: #333b48;
+  font-size: 0.88rem;
+  white-space: nowrap;
+}
+
+.signal-bars {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 16px;
+}
+
+.signal-bars i {
+  display: block;
+  width: 4px;
+  border-radius: 2px;
+  background: #31a354;
+}
+
+.signal-bars i:nth-child(1) {
+  height: 6px;
+}
+
+.signal-bars i:nth-child(2) {
+  height: 10px;
+}
+
+.signal-bars i:nth-child(3) {
+  height: 15px;
 }
 
 .station-actions {
   display: flex;
-  gap: 0.5rem;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
 }
 
-.btn {
-  width: 40px;
-  height: 40px;
-  border: none;
-  border-radius: 10px;
+.icon-button {
+  width: 32px;
+  height: 32px;
+  border: 1px solid #dce1e8;
+  border-radius: 50%;
+  background: #fff;
+  color: #202633;
   cursor: pointer;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s ease;
-  font-size: 1rem;
+  line-height: 1;
+  transition: all 0.16s ease;
 }
 
-.btn-play {
-  background: linear-gradient(135deg, #667eea, #764ba2);
-  color: white;
+.icon-button:hover:not(:disabled) {
+  border-color: #b9c2cf;
+  background: #f5f7fa;
+  transform: translateY(-1px);
 }
 
-.btn-play:hover {
-  background: linear-gradient(135deg, #764ba2, #667eea);
-  transform: scale(1.1);
+.icon-button:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
 }
 
-.btn-copy {
-  background: rgba(255, 255, 255, 0.1);
-  color: white;
+.icon-button.primary {
+  border-color: #cfd7e3;
 }
 
-.btn-copy:hover {
-  background: rgba(255, 255, 255, 0.2);
-  transform: scale(1.1);
+.icon-button.ghost {
+  border-color: transparent;
+  background: transparent;
 }
 
-.btn-delete {
-  background: rgba(255, 100, 100, 0.15);
-  color: white;
+.icon-button.danger {
+  color: #c33f3f;
 }
 
-.btn-delete:hover {
-  background: rgba(255, 100, 100, 0.4);
-  transform: scale(1.1);
+.icon-button.danger:hover {
+  border-color: #f0c6c6;
+  background: #fff5f5;
 }
 
-.custom-tag {
-  background: linear-gradient(135deg, #f093fb, #f5576c) !important;
+@media (max-width: 1040px) {
+  .station-row {
+    grid-template-columns: var(--station-table-columns);
+  }
+
 }
 </style>

@@ -1,14 +1,21 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { ChevronDown, ChevronUp, Pause, Play, SkipBack, SkipForward, Volume2, X } from 'lucide-vue-next'
 import type { Station } from '../types'
 
 const props = defineProps<{
   station: Station | null
   streamUrl: string
+  stations: Station[]
+  currentStationId: string | null
+  collapsed: boolean
 }>()
 
 const emit = defineEmits<{
   close: []
+  previous: []
+  next: []
+  'toggle-collapse': []
 }>()
 
 const audioRef = ref<HTMLAudioElement | null>(null)
@@ -16,6 +23,35 @@ const isPlaying = ref(false)
 const volume = ref(80)
 const isLoading = ref(false)
 const error = ref<string | null>(null)
+const currentTime = ref(0)
+const duration = ref(0)
+
+const stationInitials = computed(() => props.station?.name.trim().slice(0, 2) || '电台')
+const canNavigate = computed(() => {
+  return Boolean(props.currentStationId) && props.stations.length > 1
+})
+const progressValue = computed(() => {
+  if (!Number.isFinite(duration.value) || duration.value <= 0) {
+    return isPlaying.value ? 56 : 0
+  }
+  return Math.min(100, (currentTime.value / duration.value) * 100)
+})
+
+const formatTime = (seconds: number) => {
+  if (!Number.isFinite(seconds) || seconds <= 0) return '00:00'
+  const minutes = Math.floor(seconds / 60)
+  const rest = Math.floor(seconds % 60)
+  return `${String(minutes).padStart(2, '0')}:${String(rest).padStart(2, '0')}`
+}
+
+const elapsedText = computed(() => formatTime(currentTime.value))
+const durationText = computed(() => {
+  if (!Number.isFinite(duration.value) || duration.value <= 0) return '直播'
+  return formatTime(duration.value)
+})
+const volumeTrackStyle = computed(() => ({
+  background: `linear-gradient(90deg, #2f9e55 0%, #2f9e55 ${volume.value}%, #e4e8ed ${volume.value}%, #e4e8ed 100%)`,
+}))
 
 const resetAudioElement = () => {
   if (!audioRef.value) return
@@ -24,6 +60,8 @@ const resetAudioElement = () => {
   audioRef.value.removeAttribute('src')
   audioRef.value.load()
   isPlaying.value = false
+  currentTime.value = 0
+  duration.value = 0
 }
 
 const getPlaybackUrl = () => {
@@ -31,28 +69,26 @@ const getPlaybackUrl = () => {
   return `${props.streamUrl}${separator}t=${Date.now()}`
 }
 
-// 组件挂载后自动播放
 onMounted(() => {
   if (props.station && props.streamUrl && audioRef.value) {
     startPlayback()
   }
 })
 
-// 组件卸载时停止播放
 onUnmounted(() => {
   resetAudioElement()
 })
 
 const startPlayback = async () => {
   if (!audioRef.value || !props.streamUrl) return
-  
+
   isLoading.value = true
   error.value = null
 
   resetAudioElement()
   audioRef.value.src = getPlaybackUrl()
   audioRef.value.volume = volume.value / 100
-  
+
   try {
     await audioRef.value.play()
   } catch (e: any) {
@@ -90,6 +126,16 @@ const handleError = () => {
   }
 }
 
+const handleLoadedMetadata = () => {
+  if (!audioRef.value) return
+  duration.value = Number.isFinite(audioRef.value.duration) ? audioRef.value.duration : 0
+}
+
+const handleTimeUpdate = () => {
+  if (!audioRef.value) return
+  currentTime.value = audioRef.value.currentTime
+}
+
 const handleVolumeChange = () => {
   if (audioRef.value) {
     audioRef.value.volume = volume.value / 100
@@ -100,64 +146,116 @@ const handleClose = () => {
   resetAudioElement()
   emit('close')
 }
-
-// 获取类型图标
-const getTypeIcon = (name: string) => {
-  if (!name) return '📻'
-  if (name.includes('新闻') || name.includes('之声')) return '📰'
-  if (name.includes('音乐') || name.includes('Music')) return '🎵'
-  if (name.includes('交通') || name.includes('高速')) return '🚗'
-  return '📻'
-}
 </script>
 
 <template>
-  <div v-if="station" class="player">
+  <div v-if="station" :class="['player', { 'player-collapsed': collapsed }]">
     <audio
       ref="audioRef"
       preload="none"
       @play="handlePlay"
       @pause="handlePause"
       @error="handleError"
+      @loadedmetadata="handleLoadedMetadata"
+      @timeupdate="handleTimeUpdate"
     />
-    
+
     <div class="player-info">
-      <span class="player-icon">{{ getTypeIcon(station.name) }}</span>
+      <div class="station-cover">
+        <img v-if="station.image" :src="station.image" :alt="station.name" />
+        <span v-else>{{ stationInitials }}</span>
+      </div>
       <div class="player-text">
-        <span class="player-name">{{ station.name }}</span>
-        <span class="player-province">{{ station.province }}</span>
+        <div class="player-title-line">
+          <span class="player-name">{{ station.name }}</span>
+          <span class="live-badge">正在播放</span>
+        </div>
+        <div class="player-meta">
+          <span>{{ station.province }}</span>
+          <span>·</span>
+          <span>国语</span>
+          <span class="signal-mini"><i></i><i></i><i></i></span>
+          <span>良好</span>
+        </div>
       </div>
     </div>
 
-    <div class="player-controls">
-      <div v-if="isLoading" class="loading-indicator">
-        <span class="spinner"></span>
-        <span>加载中...</span>
+    <div class="player-center">
+      <div class="transport-controls">
+        <button
+          class="transport-button"
+          type="button"
+          title="上一个"
+          :disabled="!canNavigate"
+          @click="emit('previous')"
+        >
+          <SkipBack :size="22" :fill="'currentColor'" />
+        </button>
+        <button class="play-button" type="button" @click="togglePlay">
+          <span v-if="isLoading" class="small-spinner"></span>
+          <Pause v-else-if="isPlaying" :size="30" :fill="'currentColor'" />
+          <Play v-else :size="28" :fill="'currentColor'" />
+        </button>
+        <button
+          class="transport-button"
+          type="button"
+          title="下一个"
+          :disabled="!canNavigate"
+          @click="emit('next')"
+        >
+          <SkipForward :size="22" :fill="'currentColor'" />
+        </button>
       </div>
-      
-      <div v-else-if="error" class="error-message">
-        {{ error }}
+
+      <div class="progress-row">
+        <span>{{ elapsedText }}</span>
+        <div class="progress-track">
+          <span class="progress-fill" :style="{ width: `${progressValue}%` }"></span>
+          <span class="progress-thumb" :style="{ left: `${progressValue}%` }"></span>
+        </div>
+        <span>{{ durationText }}</span>
       </div>
-      
-      <button v-else class="btn-control" @click="togglePlay">
-        <span v-if="isPlaying">⏸</span>
-        <span v-else>▶</span>
+
+      <div v-if="error" class="error-message">{{ error }}</div>
+    </div>
+
+    <div class="player-actions">
+      <Volume2 :size="20" />
+      <input
+        type="range"
+        v-model.number="volume"
+        min="0"
+        max="100"
+        class="volume-slider"
+        :style="volumeTrackStyle"
+        @input="handleVolumeChange"
+      />
+      <span class="volume-value">{{ volume }}%</span>
+      <button
+        class="plain-button"
+        type="button"
+        :title="collapsed ? '展开' : '收起'"
+        @click="emit('toggle-collapse')"
+      >
+        <ChevronDown v-if="collapsed" :size="22" />
+        <ChevronUp v-else :size="22" />
       </button>
+      <button class="plain-button" type="button" title="关闭" @click="handleClose">
+        <X :size="20" />
+      </button>
+    </div>
 
-      <div class="volume-control">
-        <span class="volume-icon">🔊</span>
-        <input
-          type="range"
-          v-model="volume"
-          min="0"
-          max="100"
-          class="volume-slider"
-          @input="handleVolumeChange"
-        />
-      </div>
-
-      <button class="btn-close" @click="handleClose" title="关闭">
-        ✕
+    <div class="mini-player-actions">
+      <button class="mini-play-button" type="button" @click="togglePlay">
+        <span v-if="isLoading" class="small-spinner"></span>
+        <Pause v-else-if="isPlaying" :size="20" :fill="'currentColor'" />
+        <Play v-else :size="19" :fill="'currentColor'" />
+      </button>
+      <button class="plain-button" type="button" title="展开" @click="emit('toggle-collapse')">
+        <ChevronDown :size="21" />
+      </button>
+      <button class="plain-button" type="button" title="关闭" @click="handleClose">
+        <X :size="19" />
       </button>
     </div>
   </div>
@@ -165,131 +263,283 @@ const getTypeIcon = (name: string) => {
 
 <style scoped>
 .player {
-  display: flex;
+  min-height: 96px;
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: minmax(260px, 360px) minmax(360px, 1fr) minmax(240px, 320px);
   align-items: center;
-  justify-content: space-between;
-  padding: 0.8rem 1.5rem;
-  background: linear-gradient(135deg, rgba(102, 126, 234, 0.2), rgba(118, 75, 162, 0.2));
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
+  gap: 24px;
+  padding: 12px 28px;
+  background: #ffffff;
+  border-top: 1px solid #e5e7eb;
+}
+
+.player-collapsed {
+  min-height: 58px;
+  grid-template-columns: minmax(220px, 1fr) auto;
+  gap: 16px;
+  padding: 8px 24px;
+}
+
+.player-collapsed .station-cover {
+  width: 42px;
+  height: 42px;
+  font-size: 0.78rem;
+}
+
+.player-collapsed .player-center,
+.player-collapsed .player-actions {
+  display: none;
+}
+
+.player-collapsed .player-meta {
+  margin-top: 4px;
+  font-size: 0.78rem;
+}
+
+.player-collapsed .player-name {
+  font-size: 0.95rem;
 }
 
 .player-info {
   display: flex;
   align-items: center;
-  gap: 0.8rem;
+  gap: 16px;
+  min-width: 0;
 }
 
-.player-icon {
-  font-size: 1.5rem;
+.station-cover {
+  width: 70px;
+  height: 70px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #f7f8fa;
+  color: #c81e1e;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  overflow: hidden;
+  font-size: 1rem;
+  font-weight: 850;
+}
+
+.station-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .player-text {
+  min-width: 0;
+}
+
+.player-title-line {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
 }
 
 .player-name {
-  font-weight: 600;
-  color: #fff;
-  font-size: 0.95rem;
+  min-width: 0;
+  color: #111827;
+  font-size: 1.1rem;
+  font-weight: 850;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.player-province {
-  font-size: 0.8rem;
-  color: rgba(255, 255, 255, 0.6);
+.live-badge {
+  flex: 0 0 auto;
+  padding: 3px 8px;
+  border-radius: 5px;
+  background: #e4f3e8;
+  color: #2b874c;
+  font-size: 0.76rem;
+  font-weight: 760;
 }
 
-.player-controls {
+.player-meta {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: 8px;
+  margin-top: 10px;
+  color: #4f5968;
+  font-size: 0.9rem;
 }
 
-.btn-control {
-  width: 45px;
-  height: 45px;
-  border: none;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #667eea, #764ba2);
-  color: white;
-  font-size: 1.2rem;
-  cursor: pointer;
+.signal-mini {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 16px;
+  margin-left: 8px;
+}
+
+.signal-mini i {
+  width: 4px;
+  border-radius: 2px;
+  background: #31a354;
+}
+
+.signal-mini i:nth-child(1) {
+  height: 7px;
+}
+
+.signal-mini i:nth-child(2) {
+  height: 11px;
+}
+
+.signal-mini i:nth-child(3) {
+  height: 16px;
+}
+
+.player-center {
+  min-width: 0;
+}
+
+.transport-controls {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s ease;
+  gap: 34px;
 }
 
-.btn-control:hover {
-  transform: scale(1.1);
-  box-shadow: 0 4px 20px rgba(102, 126, 234, 0.5);
+.transport-button,
+.play-button,
+.plain-button {
+  border: 0;
+  background: transparent;
+  color: #111827;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.volume-control {
+.transport-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
+}
+
+.play-button {
+  width: 56px;
+  height: 56px;
+  border: 1px solid #dfe3e8;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 3px 8px rgba(17, 24, 39, 0.05);
+}
+
+.mini-player-actions {
+  display: none;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.player-collapsed .mini-player-actions {
+  display: flex;
+}
+
+.mini-play-button {
+  width: 34px;
+  height: 34px;
+  border: 1px solid #dfe3e8;
+  border-radius: 50%;
+  background: #fff;
+  color: #111827;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.progress-row {
+  display: grid;
+  grid-template-columns: 48px minmax(180px, 1fr) 48px;
+  align-items: center;
+  gap: 14px;
+  margin-top: 8px;
+  color: #4f5968;
+  font-size: 0.84rem;
+}
+
+.progress-track {
+  position: relative;
+  height: 5px;
+  border-radius: 999px;
+  background: #e4e8ed;
+}
+
+.progress-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: inherit;
+  background: #2f9e55;
+}
+
+.progress-thumb {
+  position: absolute;
+  top: 50%;
+  width: 18px;
+  height: 18px;
+  border: 2px solid #9aa2af;
+  border-radius: 50%;
+  background: #fff;
+  transform: translate(-50%, -50%);
+}
+
+.player-actions {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-}
-
-.volume-icon {
-  font-size: 1rem;
+  justify-content: flex-end;
+  gap: 14px;
+  color: #4f5968;
 }
 
 .volume-slider {
-  width: 100px;
-  height: 4px;
+  width: 130px;
+  height: 5px;
   -webkit-appearance: none;
   appearance: none;
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 2px;
+  background: #e4e8ed;
+  border-radius: 999px;
   outline: none;
 }
 
 .volume-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 14px;
-  height: 14px;
+  width: 18px;
+  height: 18px;
+  border: 2px solid #9aa2af;
   border-radius: 50%;
-  background: linear-gradient(135deg, #4facfe, #00f2fe);
+  background: #fff;
   cursor: pointer;
 }
 
-.btn-close {
-  width: 30px;
-  height: 30px;
-  border: none;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.6);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
+.volume-value {
+  min-width: 42px;
+  color: #4f5968;
+  font-size: 0.86rem;
 }
 
-.btn-close:hover {
-  background: rgba(255, 100, 100, 0.3);
-  color: #ff6b6b;
-}
-
-.loading-indicator {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 0.9rem;
-}
-
-.spinner {
-  width: 16px;
-  height: 16px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-top-color: #4facfe;
+.small-spinner {
+  width: 22px;
+  height: 22px;
+  border: 3px solid #dce3ed;
+  border-top-color: #2f9e55;
   border-radius: 50%;
   animation: spin 1s linear infinite;
+}
+
+.error-message {
+  margin-top: 6px;
+  text-align: center;
+  color: #c33f3f;
+  font-size: 0.82rem;
 }
 
 @keyframes spin {
@@ -298,8 +548,34 @@ const getTypeIcon = (name: string) => {
   }
 }
 
-.error-message {
-  color: #ff6b6b;
-  font-size: 0.85rem;
+@media (max-width: 1100px) {
+  .player {
+    grid-template-columns: minmax(240px, 1fr) minmax(300px, 1.2fr);
+    row-gap: 10px;
+  }
+
+  .player-actions {
+    display: none;
+  }
+
+  .player-collapsed {
+    grid-template-columns: 1fr auto;
+  }
+}
+
+@media (max-width: 940px) {
+  .player {
+    grid-template-columns: 1fr;
+    gap: 14px;
+    padding: 12px 18px;
+  }
+
+  .transport-controls {
+    gap: 22px;
+  }
+
+  .player-collapsed {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
 }
 </style>

@@ -1,6 +1,16 @@
 <script setup lang="ts">
 import { computed, h, ref, watch } from 'vue'
-import { NConfigProvider, NTransfer, zhCN, type GlobalThemeOverrides, type TransferOption } from 'naive-ui'
+import {
+  NConfigProvider,
+  NInput,
+  NSelect,
+  NTransfer,
+  zhCN,
+  type GlobalThemeOverrides,
+  type SelectOption,
+  type TransferOption,
+} from 'naive-ui'
+import { ListMusic } from 'lucide-vue-next'
 import type { Station } from '../types'
 
 interface StationTransferOption extends TransferOption {
@@ -79,6 +89,11 @@ const selectedCount = computed(() => localSelectedIds.value.length)
 const filteredVisibleCount = computed(() => {
   return props.stations.filter((station) => !selectedIdSet.value.has(station.id) && matchesFilters(station)).length
 })
+const provinceOptions = computed<SelectOption[]>(() => [
+  { label: '全部地区', value: '' },
+  { label: '自定义电台', value: props.customFilterValue },
+  ...props.provinces.map((province) => ({ label: province, value: province })),
+])
 
 const sourceTitle = computed(() => `可选电台 ${filteredVisibleCount.value}`)
 const targetTitle = computed(() => `待安装电台 ${selectedCount.value}`)
@@ -138,32 +153,29 @@ const handleConfirm = () => {
     <div v-if="visible" class="modal-overlay" @click.self="emit('close')">
       <div class="modal-content modal-content-wide">
         <div class="modal-header">
-          <span class="modal-icon">📦</span>
+          <span class="modal-icon">
+            <ListMusic :size="24" />
+          </span>
           <div class="header-text">
-            <h2>安装列表</h2>
-            <p>选择最终写入欧卡 `live_streams.sii` 的电台</p>
+            <h2>管理队列</h2>
+            <p>批量选择最终写入欧卡 `live_streams.sii` 的电台</p>
           </div>
         </div>
 
         <div class="modal-body">
           <div class="dialog-toolbar">
-            <div class="search-box">
-       
-              <input
-                v-model="searchQuery"
-                type="text"
-                class="form-input search-input"
-                placeholder="筛选左侧可选电台"
-              />
-            </div>
+            <NInput
+              v-model:value="searchQuery"
+              clearable
+              size="large"
+              placeholder="筛选左侧可选电台"
+            />
 
-            <select v-model="selectedProvince" class="form-input province-select">
-              <option value="">全部地区</option>
-              <option :value="customFilterValue">自定义电台</option>
-              <option v-for="province in provinces" :key="province" :value="province">
-                {{ province }}
-              </option>
-            </select>
+            <NSelect
+              v-model:value="selectedProvince"
+              size="large"
+              :options="provinceOptions"
+            />
           </div>
 
           <div class="selection-summary">
@@ -198,10 +210,10 @@ const handleConfirm = () => {
             <button class="btn-modal btn-cancel" @click="emit('close')">取消</button>
             <button
               class="btn-modal btn-confirm"
-              :disabled="isInstalling || selectedCount === 0"
+              :disabled="isInstalling"
               @click="handleConfirm"
             >
-              {{ isInstalling ? '安装中...' : `安装 ${selectedCount} 个电台` }}
+              {{ isInstalling ? '更新中...' : `保存队列（${selectedCount}）` }}
             </button>
           </div>
         </div>
@@ -218,15 +230,15 @@ const handleConfirm = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.75);
-  backdrop-filter: blur(8px);
+  background: rgba(17, 24, 39, 0.42);
+  backdrop-filter: blur(6px);
 }
 
 .modal-content {
-  background: linear-gradient(135deg, #1a1a2e, #16213e);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 20px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  background: #ffffff;
+  border: 1px solid #e3e6eb;
+  border-radius: 8px;
+  box-shadow: 0 24px 70px rgba(17, 24, 39, 0.18);
 }
 
 .modal-content-wide {
@@ -234,37 +246,46 @@ const handleConfirm = () => {
   max-height: 88vh;
   display: flex;
   flex-direction: column;
-  padding: 1.5rem;
+  padding: 1rem;
   overflow: hidden;
 }
 
 .modal-header {
   display: flex;
   align-items: center;
-  gap: 0.9rem;
-  margin-bottom: 1rem;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
 }
 
 .modal-icon {
-  font-size: 2rem;
+  width: 38px;
+  height: 38px;
+  border-radius: 7px;
+  background: #191f28;
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
 }
 
 .header-text h2 {
   margin: 0;
-  font-size: 1.3rem;
+  font-size: 1.12rem;
+  color: #151923;
 }
 
 .header-text p {
-  margin: 0.3rem 0 0;
-  color: rgba(255, 255, 255, 0.6);
-  font-size: 0.9rem;
+  margin: 0.22rem 0 0;
+  color: #697181;
+  font-size: 0.82rem;
 }
 
 .modal-body {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.75rem;
   min-height: 0;
   overflow: hidden;
 }
@@ -272,80 +293,36 @@ const handleConfirm = () => {
 .dialog-toolbar {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 180px;
-  gap: 0.8rem;
-}
-
-.search-box {
-  position: relative;
-}
-
-.search-icon {
-  position: absolute;
-  top: 50%;
-  left: 1rem;
-  transform: translateY(-50%);
-  pointer-events: none;
-}
-
-.search-input {
-  padding-left: 2.7rem;
-}
-
-.form-input {
-  width: 100%;
-  padding: 0.8rem 1rem;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.05);
-  color: white;
-  font-size: 0.95rem;
-  outline: none;
-  transition: all 0.2s ease;
-}
-
-.form-input:focus {
-  border-color: #4facfe;
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.province-select option {
-  background: #1a1a2e;
-  color: white;
+  gap: 0.6rem;
 }
 
 .selection-summary {
   display: flex;
   justify-content: space-between;
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 0.9rem;
+  color: #697181;
+  font-size: 0.82rem;
 }
 
 .transfer-wrapper {
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  border-radius: 18px;
-  padding: 0.5rem;
-  background:
-    radial-gradient(circle at 20% 0%, rgba(79, 172, 254, 0.12), transparent 32%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.018)),
-    rgba(8, 13, 29, 0.82);
-  border: 1px solid rgba(148, 163, 184, 0.16);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.06),
-    0 18px 48px rgba(0, 0, 0, 0.28);
+  border-radius: 8px;
+  padding: 0.4rem;
+  background: #f7f8fa;
+  border: 1px solid #e3e6eb;
 }
 
 .station-transfer {
   display: flex;
-  gap: 0.8rem;
+  gap: 0.6rem;
   width: 100%;
   height: clamp(360px, 48vh, 500px);
   min-width: 0;
   min-height: 0;
-  --n-scrollbar-color: rgba(79, 172, 254, 0.32);
-  --n-scrollbar-color-hover: rgba(79, 172, 254, 0.56);
-  --n-scrollbar-rail-color: rgba(255, 255, 255, 0.035);
+  --n-scrollbar-color: rgba(47, 158, 85, 0.32);
+  --n-scrollbar-color-hover: rgba(47, 158, 85, 0.56);
+  --n-scrollbar-rail-color: rgba(17, 24, 39, 0.04);
 }
 
 .station-transfer :deep(.n-transfer) {
@@ -359,14 +336,10 @@ const handleConfirm = () => {
 .station-transfer :deep(.n-transfer-list) {
   height: 100%;
   min-width: 320px;
-  border-radius: 14px;
-  border: 1px solid rgba(79, 172, 254, 0.18);
-  background:
-    linear-gradient(180deg, rgba(21, 31, 58, 0.96), rgba(11, 18, 36, 0.94));
+  border-radius: 7px;
+  border: 1px solid #e3e6eb;
+  background: #fff;
   overflow: hidden;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.045),
-    0 10px 28px rgba(0, 0, 0, 0.18);
 }
 
 .station-transfer :deep(.n-transfer-list__border) {
@@ -375,34 +348,32 @@ const handleConfirm = () => {
 }
 
 .station-transfer :deep(.n-transfer-list-header) {
-  min-height: 54px;
-  padding: 0.85rem 1rem;
-  border-bottom: 1px solid rgba(79, 172, 254, 0.16);
-  background:
-    linear-gradient(180deg, rgba(79, 172, 254, 0.09), rgba(255, 255, 255, 0.018)),
-    rgba(11, 18, 36, 0.62);
-  color: rgba(255, 255, 255, 0.9);
+  min-height: 46px;
+  padding: 0.6rem 0.8rem;
+  border-bottom: 1px solid #e3e6eb;
+  background: #fbfcfd;
+  color: #151923;
 }
 
 .station-transfer :deep(.n-transfer-list-header__title) {
-  color: rgba(255, 255, 255, 0.98) !important;
+  color: #151923 !important;
   font-size: 0.95rem;
   font-weight: 700;
 }
 
 .station-transfer :deep(.n-transfer-list-header__extra) {
-  color: rgba(226, 242, 255, 0.9) !important;
+  color: #697181 !important;
   font-size: 0.82rem;
   font-weight: 600;
 }
 
 .station-transfer :deep(.n-transfer-list-header__button) {
-  border-color: rgba(79, 172, 254, 0.28) !important;
-  background: rgba(79, 172, 254, 0.18) !important;
+  border-color: #e1e5eb !important;
+  background: #fff !important;
 }
 
 .station-transfer :deep(.n-transfer-list-header__button .n-button__content) {
-  color: #eafaff !important;
+  color: #2f3642 !important;
   font-weight: 700;
 }
 
@@ -430,7 +401,7 @@ const handleConfirm = () => {
   min-height: 84px;
   margin: 0;
   padding: 0;
-  color: rgba(255, 255, 255, 0.92) !important;
+  color: #151923 !important;
   transition: color 0.2s ease;
 }
 
@@ -440,28 +411,27 @@ const handleConfirm = () => {
   top: 0.28rem;
   bottom: 0.28rem;
   background: transparent !important;
-  border-radius: 13px;
+  border-radius: 7px;
   border: 1px solid transparent;
   transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .station-transfer :deep(.n-transfer-list-item:hover .n-transfer-list-item__background),
 .station-transfer :deep(.n-transfer-list-item:focus-within .n-transfer-list-item__background) {
-  background: rgba(79, 172, 254, 0.11) !important;
-  border-color: rgba(79, 172, 254, 0.24);
+  background: #f7faf8 !important;
+  border-color: #dce9df;
 }
 
 .station-transfer :deep(.n-transfer-list-item:has(.n-checkbox--checked) .n-transfer-list-item__background),
 .station-transfer :deep(.n-transfer-list-item.n-transfer-list-item--disabled .n-transfer-list-item__background) {
-  background:
-    linear-gradient(135deg, rgba(79, 172, 254, 0.2), rgba(0, 242, 254, 0.08)) !important;
-  border-color: rgba(79, 172, 254, 0.34);
-  box-shadow: inset 3px 0 0 rgba(79, 172, 254, 0.72);
+  background: #f0faf2 !important;
+  border-color: #cbe8d2;
+  box-shadow: inset 3px 0 0 #2f9e55;
 }
 
 .station-transfer :deep(.n-transfer-list-item.n-transfer-list-item--disabled) {
   opacity: 1;
-  color: rgba(255, 255, 255, 0.92) !important;
+  color: #151923 !important;
 }
 
 .station-transfer :deep(.n-transfer-list-item__checkbox) {
@@ -474,12 +444,12 @@ const handleConfirm = () => {
 }
 
 .station-transfer :deep(.n-transfer-list-item__close) {
-  color: rgba(214, 244, 255, 0.58);
+  color: #697181;
 }
 
 .station-transfer :deep(.n-transfer-list-item__close:hover) {
-  background: rgba(79, 172, 254, 0.16);
-  color: #d6f4ff;
+  background: #f1f5f9;
+  color: #151923;
 }
 
 .station-transfer :deep(.n-checkbox) {
@@ -495,17 +465,17 @@ const handleConfirm = () => {
   width: 18px;
   height: 18px;
   border-radius: 6px;
-  border: 1px solid rgba(148, 163, 184, 0.55);
-  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid #c8ced8;
+  background: #fff;
 }
 
 .station-transfer :deep(.n-checkbox:hover .n-checkbox-box) {
-  border-color: rgba(79, 172, 254, 0.8);
+  border-color: #2f9e55;
 }
 
 .station-transfer :deep(.n-checkbox.n-checkbox--checked .n-checkbox-box) {
-  border-color: #4facfe;
-  background: linear-gradient(135deg, #4facfe, #00f2fe);
+  border-color: #2f9e55;
+  background: #2f9e55;
 }
 
 .station-transfer :deep(.n-checkbox-box__border) {
@@ -527,21 +497,21 @@ const handleConfirm = () => {
   min-width: 88px;
   height: 34px;
   border-radius: 999px;
-  border-color: rgba(79, 172, 254, 0.28);
-  background: rgba(79, 172, 254, 0.14);
-  color: #d6f4ff;
+  border-color: #dce2ea;
+  background: #fff;
+  color: #2f3642;
   font-weight: 600;
 }
 
 .station-transfer :deep(.n-button:hover) {
-  border-color: rgba(79, 172, 254, 0.5);
-  background: rgba(79, 172, 254, 0.22);
+  border-color: #cbd5e1;
+  background: #f8fafc;
 }
 
 .station-transfer :deep(.n-button:disabled) {
-  border-color: rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.04);
-  color: rgba(255, 255, 255, 0.32);
+  border-color: #edf0f4;
+  background: #f8fafc;
+  color: #a0a7b3;
 }
 
 .station-transfer :deep(.transfer-station) {
@@ -549,8 +519,8 @@ const handleConfirm = () => {
   width: 100%;
   min-width: 0;
   flex-direction: column;
-  gap: 0.38rem;
-  padding: 0.75rem 0.75rem 0.75rem 0.45rem;
+  gap: 0.28rem;
+  padding: 0.62rem 0.65rem 0.62rem 0.35rem;
 }
 
 .station-transfer :deep(.transfer-station__row) {
@@ -562,7 +532,7 @@ const handleConfirm = () => {
 
 .station-transfer :deep(.transfer-station__name) {
   overflow: hidden;
-  color: rgba(255, 255, 255, 0.96);
+  color: #151923;
   font-size: 0.95rem;
   font-weight: 650;
   text-overflow: ellipsis;
@@ -572,24 +542,24 @@ const handleConfirm = () => {
 .station-transfer :deep(.transfer-station__tag) {
   flex-shrink: 0;
   border-radius: 999px;
-  background: rgba(79, 172, 254, 0.18);
-  border: 1px solid rgba(79, 172, 254, 0.24);
+  background: #eef8f1;
+  border: 1px solid #cbe8d2;
   padding: 0.12rem 0.55rem;
-  color: #a9e7ff;
+  color: #2f7d47;
   font-size: 0.72rem;
   font-weight: 600;
 }
 
 .station-transfer :deep(.transfer-station__tag.is-custom) {
-  background: rgba(240, 147, 251, 0.2);
-  border-color: rgba(240, 147, 251, 0.26);
-  color: #ffd2ff;
+  background: #eef4ff;
+  border-color: #d7e1f4;
+  color: #315f9d;
 }
 
 .station-transfer :deep(.transfer-station__subtitle) {
   margin: 0;
   overflow: hidden;
-  color: rgba(226, 232, 240, 0.78);
+  color: #697181;
   font-size: 0.82rem;
   line-height: 1.45;
   text-overflow: ellipsis;
@@ -600,10 +570,10 @@ const handleConfirm = () => {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  gap: 1rem;
-  margin-top: 1rem;
-  padding-top: 1rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e3e6eb;
   /* background: linear-gradient(180deg, rgba(26, 26, 46, 0) 0%, rgba(26, 26, 46, 0.96) 28%); */
   flex-shrink: 0;
 }
@@ -611,44 +581,44 @@ const handleConfirm = () => {
 .warning-text {
   margin: 0;
   flex: 1;
-  color: rgba(255, 255, 255, 0.6);
-  font-size: 0.85rem;
+  color: #697181;
+  font-size: 0.8rem;
   line-height: 1.5;
 }
 
 .footer-actions {
   display: flex;
-  gap: 0.8rem;
+  gap: 0.6rem;
   flex-shrink: 0;
 }
 
 .btn-modal {
-  padding: 0.75rem 1.2rem;
+  padding: 0.58rem 1rem;
   border: none;
-  border-radius: 10px;
-  font-size: 0.95rem;
+  border-radius: 6px;
+  font-size: 0.88rem;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .btn-cancel {
-  background: rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.8);
+  background: #f4f6f8;
+  color: #2f3642;
 }
 
 .btn-cancel:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: #e9edf2;
 }
 
 .btn-confirm {
-  background: linear-gradient(135deg, #4facfe, #00f2fe);
-  color: #04111d;
+  background: #2f9e55;
+  color: #ffffff;
 }
 
 .btn-confirm:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 4px 15px rgba(79, 172, 254, 0.4);
+  box-shadow: 0 8px 18px rgba(47, 158, 85, 0.22);
 }
 
 .btn-confirm:disabled {

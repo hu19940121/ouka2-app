@@ -1,38 +1,50 @@
 <script setup lang="ts">
+import { computed } from 'vue'
+import { Radio, RefreshCw } from 'lucide-vue-next'
 import type { CrawlProgress } from '../types'
 
 const props = defineProps<{
   progress: CrawlProgress
 }>()
 
-const percentage = Math.round((props.progress.current / Math.max(props.progress.total, 1)) * 100)
+const percentage = computed(() => {
+  return Math.round((props.progress.current / Math.max(props.progress.total, 1)) * 100)
+})
 </script>
 
 <template>
   <div class="crawl-overlay">
     <div class="crawl-modal">
       <div class="crawl-header">
-        <span class="crawl-icon">🔄</span>
-        <h2>正在爬取电台数据</h2>
+        <span class="crawl-icon">
+          <RefreshCw :size="22" />
+        </span>
+        <div>
+          <h2>正在爬取电台数据</h2>
+          <p>请保持应用打开，数据会自动写入当前列表。</p>
+        </div>
       </div>
-      
+
       <div class="crawl-content">
         <div class="progress-info">
           <span>正在获取: {{ progress.province }}</span>
           <span>{{ progress.current }} / {{ progress.total }}</span>
         </div>
-        
+
         <div class="progress-bar">
           <div class="progress-fill" :style="{ width: percentage + '%' }"></div>
         </div>
-        
+
         <div class="stats">
-          <span class="stat-item">
-            📻 已发现 <strong>{{ progress.stations_found }}</strong> 个电台
+          <span class="stat-icon">
+            <Radio :size="18" />
+          </span>
+          <span>
+            已发现 <strong>{{ progress.stations_found }}</strong> 个电台
           </span>
         </div>
       </div>
-      
+
       <p class="crawl-tip">请稍候，这可能需要几分钟...</p>
     </div>
   </div>
@@ -41,94 +53,120 @@ const percentage = Math.round((props.progress.current / Math.max(props.progress.
 <style scoped>
 .crawl-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.8);
-  backdrop-filter: blur(8px);
+  inset: 0;
+  background: rgba(16, 22, 32, 0.46);
+  backdrop-filter: blur(6px);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 100;
+  z-index: 180;
+  padding: 24px;
 }
 
 .crawl-modal {
-  background: linear-gradient(135deg, #1a1a2e, #16213e);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 20px;
-  padding: 2rem;
-  width: 400px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  width: min(440px, 100%);
+  border: 1px solid #e2e6ed;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 24px 70px rgba(18, 28, 45, 0.22);
+  padding: 22px;
 }
 
 .crawl-header {
   display: flex;
   align-items: center;
-  gap: 0.8rem;
-  margin-bottom: 1.5rem;
+  gap: 12px;
+  margin-bottom: 18px;
 }
 
 .crawl-icon {
-  font-size: 2rem;
+  width: 42px;
+  height: 42px;
+  border-radius: 8px;
+  background: #edf6ef;
+  color: #2f9e55;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
   animation: spin 2s linear infinite;
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .crawl-header h2 {
   margin: 0;
-  font-size: 1.3rem;
-  color: #fff;
+  color: #151923;
+  font-size: 1.08rem;
+  font-weight: 800;
+}
+
+.crawl-header p {
+  margin: 4px 0 0;
+  color: #697181;
+  font-size: 0.82rem;
+  line-height: 1.45;
 }
 
 .crawl-content {
-  margin-bottom: 1rem;
+  padding: 16px;
+  border: 1px solid #e4e8ef;
+  border-radius: 8px;
+  background: #fbfcfd;
+  margin-bottom: 14px;
 }
 
 .progress-info {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 0.5rem;
-  font-size: 0.9rem;
-  color: rgba(255, 255, 255, 0.8);
+  gap: 12px;
+  margin-bottom: 10px;
+  color: #4f5968;
+  font-size: 0.86rem;
+  font-weight: 700;
 }
 
 .progress-bar {
   height: 8px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 4px;
+  background: #e4e8ed;
+  border-radius: 999px;
   overflow: hidden;
-  margin-bottom: 1rem;
+  margin-bottom: 14px;
 }
 
 .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #4facfe, #00f2fe);
-  border-radius: 4px;
+  background: #2f9e55;
+  border-radius: inherit;
   transition: width 0.3s ease;
 }
 
 .stats {
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #697181;
+  font-size: 0.9rem;
 }
 
-.stat-item {
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 0.95rem;
+.stat-icon {
+  color: #2f9e55;
+  display: inline-flex;
 }
 
-.stat-item strong {
-  color: #4facfe;
-  font-size: 1.2rem;
+.stats strong {
+  color: #2f9e55;
+  font-size: 1.08rem;
 }
 
 .crawl-tip {
   text-align: center;
-  color: rgba(255, 255, 255, 0.5);
-  font-size: 0.85rem;
+  color: #838b99;
+  font-size: 0.82rem;
   margin: 0;
 }
 </style>
