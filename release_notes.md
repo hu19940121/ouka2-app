@@ -17,37 +17,3 @@
 | --- | --- |
 | Windows x64 | [ETS2-CN-Radio_0.2.1_x64-setup.exe](https://github.com/hu19940121/ouka2-app/releases/download/v0.2.1/ETS2-CN-Radio_0.2.1_x64-setup.exe) |
 | macOS Apple Silicon | [ETS2-CN-Radio_0.2.1_aarch64.dmg](https://github.com/hu19940121/ouka2-app/releases/download/v0.2.1/ETS2-CN-Radio_0.2.1_aarch64.dmg) |
-
-# v0.2 - 现代化主界面与安装队列
-
-## 新增
-
-- 全新浅色桌面端界面：左侧导航、中间电台表格、右侧本地服务器与安装队列。
-- 使用 Naive UI 重做电台表格、输入框、选择框、按钮和管理队列弹窗。
-- 新增右侧常驻安装队列，可直接查看、移除、清空并安装选中电台。
-- 新增底部播放器，支持试听、播放/暂停、上一首/下一首、音量控制、收起和关闭。
-- 新增设置与关于弹窗；设置中可打开调试模式，开启后侧栏显示日志入口。
-- 新增统一线性图标与新版极简应用 logo。
-
-## 改进
-
-- 安装队列默认不再全选全部电台，首次启动为空队列，避免误写入大量电台。
-- 电台列表支持搜索、地区筛选、当前筛选结果全选和批量取消。
-- 右侧安装队列支持大量电台滚动浏览，滚动时保持圆角和视觉一致。
-- 日志面板、爬取进度弹窗、自定义电台弹窗统一为新版浅色风格。
-- 小窗口下主内容和右侧面板会自适应堆叠，减少横向溢出。
-- 清理桌面端非必要图标资源，保留 Windows/macOS 打包实际使用的图标。
-
-## 修复
-
-- 修复表格表头和行列错位、操作列被裁切的问题。
-- 修复安装队列过长时无法继续下拉查看的问题。
-- 修复部分控件圆角、间距和背景色与主界面不一致的问题。
-- 修复日志菜单常驻显示的问题，现在只有调试模式开启后才显示。
-
-## 下载
-
-| 平台 | 下载 |
-| --- | --- |
-| Windows x64 | [ETS2-CN-Radio_0.2.0_x64-setup.exe](https://github.com/hu19940121/ouka2-app/releases/download/v0.2/ETS2-CN-Radio_0.2.0_x64-setup.exe) |
-| macOS Apple Silicon | [ETS2-CN-Radio_0.2.0_aarch64.dmg](https://github.com/hu19940121/ouka2-app/releases/download/v0.2/ETS2-CN-Radio_0.2.0_aarch64.dmg) |
