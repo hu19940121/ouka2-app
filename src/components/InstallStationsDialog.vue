@@ -230,15 +230,15 @@ const handleConfirm = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(17, 24, 39, 0.42);
+  background: var(--overlay);
   backdrop-filter: blur(6px);
 }
 
 .modal-content {
-  background: #ffffff;
-  border: 1px solid #e3e6eb;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 8px;
-  box-shadow: 0 24px 70px rgba(17, 24, 39, 0.18);
+  box-shadow: 0 24px 70px var(--shadow-modal);
 }
 
 .modal-content-wide {
@@ -261,8 +261,8 @@ const handleConfirm = () => {
   width: 38px;
   height: 38px;
   border-radius: 7px;
-  background: #191f28;
-  color: #fff;
+  background: var(--text-primary);
+  color: var(--surface);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -272,12 +272,12 @@ const handleConfirm = () => {
 .header-text h2 {
   margin: 0;
   font-size: 1.12rem;
-  color: #151923;
+  color: var(--text-primary);
 }
 
 .header-text p {
   margin: 0.22rem 0 0;
-  color: #697181;
+  color: var(--text-secondary);
   font-size: 0.82rem;
 }
 
@@ -299,7 +299,7 @@ const handleConfirm = () => {
 .selection-summary {
   display: flex;
   justify-content: space-between;
-  color: #697181;
+  color: var(--text-secondary);
   font-size: 0.82rem;
 }
 
@@ -309,8 +309,8 @@ const handleConfirm = () => {
   overflow: hidden;
   border-radius: 8px;
   padding: 0.4rem;
-  background: #f7f8fa;
-  border: 1px solid #e3e6eb;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
 }
 
 .station-transfer {
@@ -320,9 +320,9 @@ const handleConfirm = () => {
   height: clamp(360px, 48vh, 500px);
   min-width: 0;
   min-height: 0;
-  --n-scrollbar-color: rgba(47, 158, 85, 0.32);
-  --n-scrollbar-color-hover: rgba(47, 158, 85, 0.56);
-  --n-scrollbar-rail-color: rgba(17, 24, 39, 0.04);
+  --n-scrollbar-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  --n-scrollbar-color-hover: color-mix(in srgb, var(--accent) 68%, transparent);
+  --n-scrollbar-rail-color: var(--surface-muted);
 }
 
 .station-transfer :deep(.n-transfer) {
@@ -337,8 +337,8 @@ const handleConfirm = () => {
   height: 100%;
   min-width: 320px;
   border-radius: 7px;
-  border: 1px solid #e3e6eb;
-  background: #fff;
+  border: 1px solid var(--border);
+  background: var(--surface);
   overflow: hidden;
 }
 
@@ -350,30 +350,30 @@ const handleConfirm = () => {
 .station-transfer :deep(.n-transfer-list-header) {
   min-height: 46px;
   padding: 0.6rem 0.8rem;
-  border-bottom: 1px solid #e3e6eb;
-  background: #fbfcfd;
-  color: #151923;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-soft);
+  color: var(--text-primary);
 }
 
 .station-transfer :deep(.n-transfer-list-header__title) {
-  color: #151923 !important;
+  color: var(--text-primary) !important;
   font-size: 0.95rem;
   font-weight: 700;
 }
 
 .station-transfer :deep(.n-transfer-list-header__extra) {
-  color: #697181 !important;
+  color: var(--text-secondary) !important;
   font-size: 0.82rem;
   font-weight: 600;
 }
 
 .station-transfer :deep(.n-transfer-list-header__button) {
-  border-color: #e1e5eb !important;
-  background: #fff !important;
+  border-color: var(--border) !important;
+  background: var(--surface-raised) !important;
 }
 
 .station-transfer :deep(.n-transfer-list-header__button .n-button__content) {
-  color: #2f3642 !important;
+  color: var(--text-strong) !important;
   font-weight: 700;
 }
 
@@ -401,7 +401,7 @@ const handleConfirm = () => {
   min-height: 84px;
   margin: 0;
   padding: 0;
-  color: #151923 !important;
+  color: var(--text-primary) !important;
   transition: color 0.2s ease;
 }
 
@@ -418,20 +418,20 @@ const handleConfirm = () => {
 
 .station-transfer :deep(.n-transfer-list-item:hover .n-transfer-list-item__background),
 .station-transfer :deep(.n-transfer-list-item:focus-within .n-transfer-list-item__background) {
-  background: #f7faf8 !important;
-  border-color: #dce9df;
+  background: var(--accent-softer) !important;
+  border-color: var(--accent-soft);
 }
 
 .station-transfer :deep(.n-transfer-list-item:has(.n-checkbox--checked) .n-transfer-list-item__background),
 .station-transfer :deep(.n-transfer-list-item.n-transfer-list-item--disabled .n-transfer-list-item__background) {
-  background: #f0faf2 !important;
-  border-color: #cbe8d2;
-  box-shadow: inset 3px 0 0 #2f9e55;
+  background: var(--accent-row) !important;
+  border-color: var(--accent-soft);
+  box-shadow: inset 3px 0 0 var(--accent);
 }
 
 .station-transfer :deep(.n-transfer-list-item.n-transfer-list-item--disabled) {
   opacity: 1;
-  color: #151923 !important;
+  color: var(--text-primary) !important;
 }
 
 .station-transfer :deep(.n-transfer-list-item__checkbox) {
@@ -444,12 +444,12 @@ const handleConfirm = () => {
 }
 
 .station-transfer :deep(.n-transfer-list-item__close) {
-  color: #697181;
+  color: var(--text-secondary);
 }
 
 .station-transfer :deep(.n-transfer-list-item__close:hover) {
-  background: #f1f5f9;
-  color: #151923;
+  background: var(--surface-muted);
+  color: var(--text-primary);
 }
 
 .station-transfer :deep(.n-checkbox) {
@@ -465,17 +465,17 @@ const handleConfirm = () => {
   width: 18px;
   height: 18px;
   border-radius: 6px;
-  border: 1px solid #c8ced8;
-  background: #fff;
+  border: 1px solid var(--text-muted);
+  background: var(--surface-raised);
 }
 
 .station-transfer :deep(.n-checkbox:hover .n-checkbox-box) {
-  border-color: #2f9e55;
+  border-color: var(--accent);
 }
 
 .station-transfer :deep(.n-checkbox.n-checkbox--checked .n-checkbox-box) {
-  border-color: #2f9e55;
-  background: #2f9e55;
+  border-color: var(--accent);
+  background: var(--accent);
 }
 
 .station-transfer :deep(.n-checkbox-box__border) {
@@ -497,21 +497,21 @@ const handleConfirm = () => {
   min-width: 88px;
   height: 34px;
   border-radius: 999px;
-  border-color: #dce2ea;
-  background: #fff;
-  color: #2f3642;
+  border-color: var(--border);
+  background: var(--surface-raised);
+  color: var(--text-strong);
   font-weight: 600;
 }
 
 .station-transfer :deep(.n-button:hover) {
-  border-color: #cbd5e1;
-  background: #f8fafc;
+  border-color: var(--text-muted);
+  background: var(--surface-muted);
 }
 
 .station-transfer :deep(.n-button:disabled) {
-  border-color: #edf0f4;
-  background: #f8fafc;
-  color: #a0a7b3;
+  border-color: var(--border-soft);
+  background: var(--surface-muted);
+  color: var(--text-muted);
 }
 
 .station-transfer :deep(.transfer-station) {
@@ -532,7 +532,7 @@ const handleConfirm = () => {
 
 .station-transfer :deep(.transfer-station__name) {
   overflow: hidden;
-  color: #151923;
+  color: var(--text-primary);
   font-size: 0.95rem;
   font-weight: 650;
   text-overflow: ellipsis;
@@ -542,24 +542,24 @@ const handleConfirm = () => {
 .station-transfer :deep(.transfer-station__tag) {
   flex-shrink: 0;
   border-radius: 999px;
-  background: #eef8f1;
-  border: 1px solid #cbe8d2;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-soft);
   padding: 0.12rem 0.55rem;
-  color: #2f7d47;
+  color: var(--accent-strong);
   font-size: 0.72rem;
   font-weight: 600;
 }
 
 .station-transfer :deep(.transfer-station__tag.is-custom) {
-  background: #eef4ff;
-  border-color: #d7e1f4;
-  color: #315f9d;
+  background: var(--info-soft);
+  border-color: var(--info-soft);
+  color: var(--info);
 }
 
 .station-transfer :deep(.transfer-station__subtitle) {
   margin: 0;
   overflow: hidden;
-  color: #697181;
+  color: var(--text-secondary);
   font-size: 0.82rem;
   line-height: 1.45;
   text-overflow: ellipsis;
@@ -573,15 +573,14 @@ const handleConfirm = () => {
   gap: 0.75rem;
   margin-top: 0.75rem;
   padding-top: 0.75rem;
-  border-top: 1px solid #e3e6eb;
-  /* background: linear-gradient(180deg, rgba(26, 26, 46, 0) 0%, rgba(26, 26, 46, 0.96) 28%); */
+  border-top: 1px solid var(--border);
   flex-shrink: 0;
 }
 
 .warning-text {
   margin: 0;
   flex: 1;
-  color: #697181;
+  color: var(--text-secondary);
   font-size: 0.8rem;
   line-height: 1.5;
 }
@@ -603,22 +602,22 @@ const handleConfirm = () => {
 }
 
 .btn-cancel {
-  background: #f4f6f8;
-  color: #2f3642;
+  background: var(--surface-muted);
+  color: var(--text-strong);
 }
 
 .btn-cancel:hover {
-  background: #e9edf2;
+  background: var(--border-soft);
 }
 
 .btn-confirm {
-  background: #2f9e55;
-  color: #ffffff;
+  background: var(--accent);
+  color: var(--surface);
 }
 
 .btn-confirm:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 8px 18px rgba(47, 158, 85, 0.22);
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--accent) 32%, transparent);
 }
 
 .btn-confirm:disabled {

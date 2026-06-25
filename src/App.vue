@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, h, onMounted, ref } from 'vue'
 import {
+  darkTheme,
   NButton,
   NCheckbox,
   NConfigProvider,
@@ -19,12 +20,14 @@ import {
   FileText,
   Info,
   ListMusic,
+  Moon,
   Plus,
   Play,
   RadioTower,
   RefreshCw,
   Search,
   Settings,
+  Sun,
   Trash2,
   Upload,
 } from 'lucide-vue-next'
@@ -40,6 +43,7 @@ import type { Station } from './types'
 const store = useRadioStore()
 const appVersion = __APP_VERSION__
 const DEBUG_MODE_STORAGE_KEY = 'ouka2-debug-mode'
+const THEME_STORAGE_KEY = 'ouka2-theme'
 
 const currentStation = ref<Station | null>(null)
 const playerKey = ref(0)
@@ -56,62 +60,89 @@ const showSettingsDialog = ref(false)
 const showAboutDialog = ref(false)
 const isPlayerCollapsed = ref(false)
 const isDebugMode = ref(localStorage.getItem(DEBUG_MODE_STORAGE_KEY) === 'true')
+const isDarkTheme = ref(localStorage.getItem(THEME_STORAGE_KEY) === 'dark')
 
-const naiveThemeOverrides: GlobalThemeOverrides = {
-  common: {
-    primaryColor: '#2f9e55',
-    primaryColorHover: '#268646',
-    primaryColorPressed: '#1f6f3a',
-    primaryColorSuppl: '#2f9e55',
-    borderRadius: '8px',
-    borderRadiusSmall: '6px',
-  },
-  Button: {
-    heightLarge: '40px',
-    heightMedium: '34px',
-    borderRadiusLarge: '6px',
-    borderRadiusMedium: '6px',
-    textColor: '#202633',
-    textColorHover: '#1f6f3a',
-    border: '1px solid #e1e5eb',
-    borderHover: '1px solid #d4dbe4',
-  },
-  Input: {
-    heightLarge: '42px',
-    borderRadius: '6px',
-    border: '1px solid #e1e5eb',
-    borderHover: '1px solid #d4dbe4',
-    borderFocus: '1px solid #c8d2df',
-    boxShadowFocus: '0 0 0 3px rgba(47, 158, 85, 0.08)',
-    color: '#ffffff',
-    placeholderColor: '#a0a7b3',
-  },
-  Select: {
-    peers: {
-      InternalSelection: {
-        heightLarge: '42px',
-        borderRadius: '6px',
-        border: '1px solid #e1e5eb',
-        borderHover: '1px solid #d4dbe4',
-        borderFocus: '1px solid #c8d2df',
-        boxShadowFocus: '0 0 0 3px rgba(47, 158, 85, 0.08)',
+const applyDocumentTheme = (isDark: boolean) => {
+  document.documentElement.dataset.theme = isDark ? 'dark' : 'light'
+  document.documentElement.style.colorScheme = isDark ? 'dark' : 'light'
+}
+
+applyDocumentTheme(isDarkTheme.value)
+
+const currentNaiveTheme = computed(() => (isDarkTheme.value ? darkTheme : null))
+const themeToggleLabel = computed(() => (isDarkTheme.value ? '切换到浅色主题' : '切换到暗色主题'))
+
+const naiveThemeOverrides = computed<GlobalThemeOverrides>(() => {
+  const isDark = isDarkTheme.value
+  const border = isDark ? '#303744' : '#e1e5eb'
+  const borderHover = isDark ? '#3d4655' : '#d4dbe4'
+  const borderFocus = isDark ? '#4b5a6d' : '#c8d2df'
+  const surface = isDark ? '#181c23' : '#ffffff'
+  const surfaceSoft = isDark ? '#20252e' : '#fbfcfd'
+  const text = isDark ? '#e7ebf2' : '#202633'
+  const textMuted = isDark ? '#aab2c0' : '#4f5968'
+  const tableHover = isDark ? '#1d2b22' : '#f7faf8'
+  const accentFocus = isDark ? 'rgba(85, 199, 122, 0.18)' : 'rgba(47, 158, 85, 0.08)'
+
+  return {
+    common: {
+      primaryColor: isDark ? '#55c77a' : '#2f9e55',
+      primaryColorHover: isDark ? '#6fdc91' : '#268646',
+      primaryColorPressed: isDark ? '#39a85f' : '#1f6f3a',
+      primaryColorSuppl: isDark ? '#55c77a' : '#2f9e55',
+      borderRadius: '8px',
+      borderRadiusSmall: '6px',
+    },
+    Button: {
+      heightLarge: '40px',
+      heightMedium: '34px',
+      borderRadiusLarge: '6px',
+      borderRadiusMedium: '6px',
+      textColor: text,
+      textColorHover: isDark ? '#7bd996' : '#1f6f3a',
+      border: `1px solid ${border}`,
+      borderHover: `1px solid ${borderHover}`,
+    },
+    Input: {
+      heightLarge: '42px',
+      borderRadius: '6px',
+      border: `1px solid ${border}`,
+      borderHover: `1px solid ${borderHover}`,
+      borderFocus: `1px solid ${borderFocus}`,
+      boxShadowFocus: `0 0 0 3px ${accentFocus}`,
+      color: surface,
+      textColor: text,
+      placeholderColor: isDark ? '#7f8897' : '#a0a7b3',
+    },
+    Select: {
+      peers: {
+        InternalSelection: {
+          heightLarge: '42px',
+          borderRadius: '6px',
+          border: `1px solid ${border}`,
+          borderHover: `1px solid ${borderHover}`,
+          borderFocus: `1px solid ${borderFocus}`,
+          boxShadowFocus: `0 0 0 3px ${accentFocus}`,
+          color: surface,
+          textColor: text,
+        },
       },
     },
-  },
-  Tag: {
-    borderRadius: '999px',
-  },
-  DataTable: {
-    thColor: '#fbfcfd',
-    thTextColor: '#4f5968',
-    tdColor: '#ffffff',
-    tdColorHover: '#f7faf8',
-    borderColor: '#e4e8ef',
-    thFontWeight: '700',
-    thPaddingMedium: '9px 12px',
-    tdPaddingMedium: '8px 12px',
-  },
-}
+    Tag: {
+      borderRadius: '999px',
+    },
+    DataTable: {
+      thColor: surfaceSoft,
+      thTextColor: textMuted,
+      tdColor: surface,
+      tdColorHover: tableHover,
+      borderColor: isDark ? '#303744' : '#e4e8ef',
+      thFontWeight: '700',
+      thPaddingMedium: '9px 12px',
+      tdPaddingMedium: '8px 12px',
+    },
+  }
+})
 
 const provinceOptions = computed(() => [
   { label: '全部地区', value: '' },
@@ -320,6 +351,12 @@ const handleToggleDebugMode = (value: boolean) => {
   }
 }
 
+const handleToggleTheme = (value: boolean) => {
+  isDarkTheme.value = value
+  localStorage.setItem(THEME_STORAGE_KEY, value ? 'dark' : 'light')
+  applyDocumentTheme(value)
+}
+
 const handleClearLogs = async () => {
   await store.clearDiagnosticLogs()
 }
@@ -430,8 +467,8 @@ onMounted(async () => {
 </script>
 
 <template>
-  <NConfigProvider :locale="zhCN" :theme-overrides="naiveThemeOverrides">
-    <div class="app-shell">
+  <NConfigProvider :locale="zhCN" :theme="currentNaiveTheme" :theme-overrides="naiveThemeOverrides">
+    <div :class="['app-shell', { 'theme-dark': isDarkTheme }]">
       <aside class="app-sidebar">
         <div class="brand">
           <div class="brand-mark">
@@ -504,6 +541,26 @@ onMounted(async () => {
             :options="provinceOptions"
             size="large"
           />
+
+          <NTooltip trigger="hover">
+            <template #trigger>
+              <NButton
+                circle
+                secondary
+                size="large"
+                class="theme-toggle-button"
+                :aria-label="themeToggleLabel"
+                :title="themeToggleLabel"
+                @click="handleToggleTheme(!isDarkTheme)"
+              >
+                <template #icon>
+                  <Sun v-if="isDarkTheme" :size="20" />
+                  <Moon v-else :size="20" />
+                </template>
+              </NButton>
+            </template>
+            {{ themeToggleLabel }}
+          </NTooltip>
 
           <NTooltip trigger="hover">
             <template #trigger>
@@ -686,6 +743,14 @@ onMounted(async () => {
             <div class="settings-list">
               <div class="setting-row">
                 <div>
+                  <strong>暗色主题</strong>
+                  <span>切换后会保存为本机偏好，下次打开自动沿用。</span>
+                </div>
+                <NSwitch :value="isDarkTheme" @update:value="handleToggleTheme" />
+              </div>
+
+              <div class="setting-row">
+                <div>
                   <strong>调试模式</strong>
                   <span>打开后侧边栏显示“日志”菜单，用于查看运行诊断信息。</span>
                 </div>
@@ -758,6 +823,11 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
 }
 
+html[data-theme='dark'] body {
+  background: #111418;
+  color: #e7ebf2;
+}
+
 button,
 input,
 select,
@@ -766,21 +836,87 @@ textarea {
 }
 
 .app-shell {
+  --app-bg: #f6f7f9;
+  --surface: #ffffff;
+  --surface-soft: #fbfcfd;
+  --surface-muted: #f7f8fa;
+  --surface-raised: #ffffff;
+  --border: #e3e6eb;
+  --border-soft: #edf0f4;
+  --text-primary: #151923;
+  --text-strong: #202633;
+  --text-secondary: #697181;
+  --text-muted: #838b99;
+  --accent: #2f9e55;
+  --accent-strong: #1f6e3b;
+  --accent-soft: #e4f3e8;
+  --accent-softer: #edf6ef;
+  --accent-row: #f0faf2;
+  --danger: #b83232;
+  --danger-soft: #fff1f1;
+  --danger-border: #f3d0d0;
+  --warning: #9a620b;
+  --warning-soft: #fff8ed;
+  --warning-border: #f1cf9f;
+  --info: #2e5c9f;
+  --info-soft: #eef4ff;
+  --scrollbar-track: #f1f3f6;
+  --scrollbar-thumb: #c7ced8;
+  --overlay: rgba(16, 22, 32, 0.52);
+  --topbar-bg: rgba(255, 255, 255, 0.78);
+  --shadow-soft: rgba(18, 28, 45, 0.05);
+  --shadow-modal: rgba(18, 28, 45, 0.22);
+  --shadow-panel: rgba(18, 28, 45, 0.16);
   position: relative;
   height: 100vh;
   display: grid;
   grid-template-columns: 268px minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr) auto;
   overflow: hidden;
-  background: #f6f7f9;
+  background: var(--app-bg);
+  color: var(--text-primary);
+}
+
+.app-shell.theme-dark {
+  --app-bg: #111418;
+  --surface: #181c23;
+  --surface-soft: #20252e;
+  --surface-muted: #15191f;
+  --surface-raised: #1d222b;
+  --border: #303744;
+  --border-soft: #252b35;
+  --text-primary: #e7ebf2;
+  --text-strong: #f4f7fb;
+  --text-secondary: #aab2c0;
+  --text-muted: #7f8897;
+  --accent: #55c77a;
+  --accent-strong: #7bd996;
+  --accent-soft: #193323;
+  --accent-softer: #13241b;
+  --accent-row: #17281d;
+  --danger: #ff7a7a;
+  --danger-soft: #3a1e22;
+  --danger-border: #6d3034;
+  --warning: #f2b85b;
+  --warning-soft: #332719;
+  --warning-border: #755226;
+  --info: #8eb8ff;
+  --info-soft: #18263f;
+  --scrollbar-track: #15191f;
+  --scrollbar-thumb: #3d4655;
+  --overlay: rgba(5, 8, 12, 0.68);
+  --topbar-bg: rgba(24, 28, 35, 0.84);
+  --shadow-soft: rgba(0, 0, 0, 0.18);
+  --shadow-modal: rgba(0, 0, 0, 0.42);
+  --shadow-panel: rgba(0, 0, 0, 0.38);
 }
 
 .app-sidebar {
   display: flex;
   min-height: 0;
   padding: 24px 18px 18px;
-  border-right: 1px solid #e5e7eb;
-  background: #ffffff;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
   flex-direction: column;
   grid-row: 1;
   grid-column: 1;
@@ -810,7 +946,7 @@ textarea {
 
 .brand h1 {
   margin: 0;
-  color: #151923;
+  color: var(--text-primary);
   font-size: 1.08rem;
   font-weight: 800;
   letter-spacing: 0;
@@ -818,16 +954,16 @@ textarea {
 
 .brand p {
   margin: 4px 0 0;
-  color: #697181;
+  color: var(--text-secondary);
   font-size: 0.82rem;
 }
 
 .server-card {
   margin-top: 22px;
   padding: 14px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border);
   border-radius: 8px;
-  background: #fff;
+  background: var(--surface-raised);
 }
 
 .server-card-title {
@@ -835,14 +971,14 @@ textarea {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  color: #151923;
+  color: var(--text-primary);
   font-size: 0.92rem;
   font-weight: 750;
 }
 
 .server-card p {
   margin: 12px 0 0;
-  color: #697181;
+  color: var(--text-secondary);
   font-size: 0.84rem;
 }
 
@@ -859,7 +995,7 @@ textarea {
   border: 0;
   border-radius: 7px;
   background: transparent;
-  color: #343b49;
+  color: var(--text-strong);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -871,8 +1007,8 @@ textarea {
 
 .side-nav-item:hover,
 .side-nav-item.active {
-  background: #edf6ef;
-  color: #1f6e3b;
+  background: var(--accent-softer);
+  color: var(--accent-strong);
 }
 
 .nav-icon {
@@ -885,7 +1021,7 @@ textarea {
 
 .sidebar-footer {
   margin-top: auto;
-  color: #838b99;
+  color: var(--text-muted);
   font-size: 0.78rem;
 }
 
@@ -905,9 +1041,9 @@ textarea {
   flex-wrap: wrap;
   gap: 12px;
   padding: 18px 24px 14px;
-  border-bottom: 1px solid #e1e5eb;
-  background: rgba(255, 255, 255, 0.78);
-  box-shadow: 0 2px 12px rgba(18, 28, 45, 0.05);
+  border-bottom: 1px solid var(--border);
+  background: var(--topbar-bg);
+  box-shadow: 0 2px 12px var(--shadow-soft);
   position: relative;
   z-index: 2;
 }
@@ -923,6 +1059,14 @@ textarea {
   flex: 0 1 190px;
 }
 
+.theme-toggle-button {
+  flex: 0 0 auto;
+}
+
+.theme-toggle-button :deep(.n-button__icon) {
+  color: var(--accent-strong);
+}
+
 .content-grid {
   display: grid;
   grid-template-columns: minmax(620px, 1fr) 390px;
@@ -936,9 +1080,9 @@ textarea {
 .station-panel {
   min-width: 0;
   min-height: 0;
-  border: 1px solid #e3e6eb;
+  border: 1px solid var(--border);
   border-radius: 8px;
-  background: #fff;
+  background: var(--surface);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -950,7 +1094,7 @@ textarea {
   justify-content: space-between;
   gap: 12px;
   padding: 10px 14px;
-  border-bottom: 1px solid #e4e8ef;
+  border-bottom: 1px solid var(--border);
 }
 
 .station-panel-header h2 {
@@ -959,7 +1103,7 @@ textarea {
 
 .station-panel-header p {
   margin: 0;
-  color: #717a89;
+  color: var(--text-secondary);
   font-size: 0.88rem;
 }
 
@@ -986,7 +1130,7 @@ textarea {
 
 .station-data-table :deep(.n-data-table-base-table-body) {
   scrollbar-width: thin;
-  scrollbar-color: #c7ced8 #f1f3f6;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
 }
 
 .station-data-table :deep(.n-data-table-base-table-body::-webkit-scrollbar) {
@@ -995,13 +1139,13 @@ textarea {
 }
 
 .station-data-table :deep(.n-data-table-base-table-body::-webkit-scrollbar-track) {
-  background: #f1f3f6;
+  background: var(--scrollbar-track);
 }
 
 .station-data-table :deep(.n-data-table-base-table-body::-webkit-scrollbar-thumb) {
-  border: 2px solid #f1f3f6;
+  border: 2px solid var(--scrollbar-track);
   border-radius: 999px;
-  background: #c7ced8;
+  background: var(--scrollbar-thumb);
 }
 
 .station-data-table :deep(.n-data-table-th) {
@@ -1014,7 +1158,7 @@ textarea {
 }
 
 .station-data-table :deep(.n-data-table-tr.is-current-row .n-data-table-td) {
-  background: #f0faf2;
+  background: var(--accent-row);
 }
 
 .station-name-cell {
@@ -1031,7 +1175,7 @@ textarea {
 .station-title {
   min-width: 0;
   overflow: hidden;
-  color: #151923;
+  color: var(--text-primary);
   font-size: 0.92rem;
   font-weight: 800;
   text-overflow: ellipsis;
@@ -1041,7 +1185,7 @@ textarea {
 .station-subtitle {
   margin-top: 3px;
   overflow: hidden;
-  color: #7a8493;
+  color: var(--text-muted);
   font-size: 0.78rem;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1054,8 +1198,8 @@ textarea {
   gap: 4px;
   padding: 2px 7px;
   border-radius: 5px;
-  background: #e4f3e8;
-  color: #2f8b4d;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
   font-size: 0.72rem;
   font-weight: 760;
 }
@@ -1074,22 +1218,22 @@ textarea {
   border: 1px solid transparent;
   border-radius: 50%;
   background: transparent;
-  color: #5d6674;
+  color: var(--text-secondary);
   cursor: pointer;
   display: inline-grid;
   place-items: center;
 }
 
 .table-icon-button:hover {
-  border-color: #dce2ea;
-  background: #f7f8fa;
-  color: #111827;
+  border-color: var(--border);
+  background: var(--surface-muted);
+  color: var(--text-primary);
 }
 
 .table-icon-button.primary {
-  border-color: #e1e6ee;
-  background: #fff;
-  color: #111827;
+  border-color: var(--border);
+  background: var(--surface-raised);
+  color: var(--text-primary);
 }
 
 .table-icon-button.primary:disabled {
@@ -1098,17 +1242,17 @@ textarea {
 }
 
 .table-icon-button.danger:hover {
-  border-color: #f3d0d0;
-  background: #fff1f1;
-  color: #b83232;
+  border-color: var(--danger-border);
+  background: var(--danger-soft);
+  color: var(--danger);
 }
 
 .topbar-count {
   min-width: 24px;
   height: 24px;
   border-radius: 999px;
-  background: #eef0f4;
-  color: #6b7280;
+  background: var(--surface-muted);
+  color: var(--text-secondary);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1126,24 +1270,24 @@ textarea {
   max-width: min(720px, calc(100vw - 40px));
   padding: 10px 16px;
   border-radius: 8px;
-  box-shadow: 0 14px 30px rgba(18, 28, 45, 0.16);
+  box-shadow: 0 14px 30px var(--shadow-panel);
   font-size: 0.9rem;
   transform: translateX(-50%);
 }
 
 .toast-success {
-  background: #eaf7ed;
-  color: #1f6e3b;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
 }
 
 .toast-error {
-  background: #fff1f1;
-  color: #b83232;
+  background: var(--danger-soft);
+  color: var(--danger);
 }
 
 .toast-info {
-  background: #eef4ff;
-  color: #2e5c9f;
+  background: var(--info-soft);
+  color: var(--info);
 }
 
 .toast-enter-active,
@@ -1164,7 +1308,7 @@ textarea {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(16, 22, 32, 0.52);
+  background: var(--overlay);
   backdrop-filter: blur(6px);
 }
 
@@ -1172,22 +1316,22 @@ textarea {
   width: 460px;
   max-width: calc(100vw - 32px);
   padding: 24px;
-  border: 1px solid #e2e6ed;
+  border: 1px solid var(--border);
   border-radius: 8px;
-  background: #fff;
-  box-shadow: 0 24px 70px rgba(18, 28, 45, 0.22);
+  background: var(--surface);
+  box-shadow: 0 24px 70px var(--shadow-modal);
 }
 
 .modal-header h2 {
   margin: 0;
-  color: #151923;
+  color: var(--text-primary);
   font-size: 1.15rem;
   font-weight: 800;
 }
 
 .modal-header p {
   margin: 6px 0 0;
-  color: #697181;
+  color: var(--text-secondary);
   font-size: 0.84rem;
 }
 
@@ -1205,7 +1349,7 @@ textarea {
 }
 
 .form-group span {
-  color: #343b49;
+  color: var(--text-strong);
   font-size: 0.86rem;
   font-weight: 700;
 }
@@ -1222,6 +1366,9 @@ textarea {
 }
 
 .settings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
   margin-top: 20px;
 }
 
@@ -1231,9 +1378,9 @@ textarea {
   justify-content: space-between;
   gap: 18px;
   padding: 14px;
-  border: 1px solid #e4e8ef;
+  border: 1px solid var(--border);
   border-radius: 8px;
-  background: #fbfcfd;
+  background: var(--surface-soft);
 }
 
 .setting-row strong,
@@ -1242,13 +1389,13 @@ textarea {
 }
 
 .setting-row strong {
-  color: #151923;
+  color: var(--text-primary);
   font-size: 0.92rem;
 }
 
 .setting-row span {
   margin-top: 4px;
-  color: #697181;
+  color: var(--text-secondary);
   font-size: 0.82rem;
   line-height: 1.5;
 }
@@ -1260,10 +1407,10 @@ textarea {
   gap: 10px;
   margin-top: 22px;
   padding: 30px 24px;
-  border: 1px solid #e4e8ef;
+  border: 1px solid var(--border);
   border-radius: 8px;
-  background: #fbfcfd;
-  color: #697181;
+  background: var(--surface-soft);
+  color: var(--text-secondary);
   text-align: center;
 }
 
@@ -1273,11 +1420,11 @@ textarea {
 }
 
 .empty-feature svg {
-  color: #2f9e55;
+  color: var(--accent);
 }
 
 .empty-feature strong {
-  color: #151923;
+  color: var(--text-primary);
   font-size: 1rem;
 }
 
@@ -1296,7 +1443,7 @@ textarea {
 
 .about-body p {
   margin: 0;
-  color: #4f5968;
+  color: var(--text-secondary);
   font-size: 0.9rem;
   line-height: 1.65;
 }
@@ -1306,19 +1453,19 @@ textarea {
   grid-template-columns: 86px minmax(0, 1fr);
   gap: 10px 14px;
   padding: 14px;
-  border: 1px solid #e4e8ef;
+  border: 1px solid var(--border);
   border-radius: 8px;
-  background: #fbfcfd;
+  background: var(--surface-soft);
 }
 
 .about-grid span {
-  color: #7a8493;
+  color: var(--text-muted);
   font-size: 0.82rem;
 }
 
 .about-grid strong {
   min-width: 0;
-  color: #202633;
+  color: var(--text-strong);
   font-size: 0.84rem;
   font-weight: 700;
   overflow-wrap: anywhere;

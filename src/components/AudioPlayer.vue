@@ -50,7 +50,7 @@ const durationText = computed(() => {
   return formatTime(duration.value)
 })
 const volumeTrackStyle = computed(() => ({
-  background: `linear-gradient(90deg, #2f9e55 0%, #2f9e55 ${volume.value}%, #e4e8ed ${volume.value}%, #e4e8ed 100%)`,
+  background: `linear-gradient(90deg, var(--accent) 0%, var(--accent) ${volume.value}%, var(--border) ${volume.value}%, var(--border) 100%)`,
 }))
 
 const resetAudioElement = () => {
@@ -270,8 +270,8 @@ const handleClose = () => {
   align-items: center;
   gap: 24px;
   padding: 12px 28px;
-  background: #ffffff;
-  border-top: 1px solid #e5e7eb;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
 }
 
 .player-collapsed {
@@ -311,10 +311,10 @@ const handleClose = () => {
 .station-cover {
   width: 70px;
   height: 70px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border);
   border-radius: 6px;
-  background: #f7f8fa;
-  color: #c81e1e;
+  background: var(--surface-muted);
+  color: var(--danger);
   display: grid;
   place-items: center;
   flex: 0 0 auto;
@@ -342,7 +342,7 @@ const handleClose = () => {
 
 .player-name {
   min-width: 0;
-  color: #111827;
+  color: var(--text-primary);
   font-size: 1.1rem;
   font-weight: 850;
   overflow: hidden;
@@ -354,8 +354,8 @@ const handleClose = () => {
   flex: 0 0 auto;
   padding: 3px 8px;
   border-radius: 5px;
-  background: #e4f3e8;
-  color: #2b874c;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
   font-size: 0.76rem;
   font-weight: 760;
 }
@@ -365,7 +365,7 @@ const handleClose = () => {
   align-items: center;
   gap: 8px;
   margin-top: 10px;
-  color: #4f5968;
+  color: var(--text-secondary);
   font-size: 0.9rem;
 }
 
@@ -380,7 +380,7 @@ const handleClose = () => {
 .signal-mini i {
   width: 4px;
   border-radius: 2px;
-  background: #31a354;
+  background: var(--accent);
 }
 
 .signal-mini i:nth-child(1) {
@@ -411,7 +411,7 @@ const handleClose = () => {
 .plain-button {
   border: 0;
   background: transparent;
-  color: #111827;
+  color: var(--text-primary);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -426,10 +426,10 @@ const handleClose = () => {
 .play-button {
   width: 56px;
   height: 56px;
-  border: 1px solid #dfe3e8;
+  border: 1px solid var(--border);
   border-radius: 50%;
-  background: #ffffff;
-  box-shadow: 0 3px 8px rgba(17, 24, 39, 0.05);
+  background: var(--surface-raised);
+  box-shadow: 0 3px 8px var(--shadow-soft);
 }
 
 .mini-player-actions {
@@ -446,10 +446,10 @@ const handleClose = () => {
 .mini-play-button {
   width: 34px;
   height: 34px;
-  border: 1px solid #dfe3e8;
+  border: 1px solid var(--border);
   border-radius: 50%;
-  background: #fff;
-  color: #111827;
+  background: var(--surface-raised);
+  color: var(--text-primary);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -462,7 +462,7 @@ const handleClose = () => {
   align-items: center;
   gap: 14px;
   margin-top: 8px;
-  color: #4f5968;
+  color: var(--text-secondary);
   font-size: 0.84rem;
 }
 
@@ -470,14 +470,14 @@ const handleClose = () => {
   position: relative;
   height: 5px;
   border-radius: 999px;
-  background: #e4e8ed;
+  background: var(--border);
 }
 
 .progress-fill {
   position: absolute;
   inset: 0 auto 0 0;
   border-radius: inherit;
-  background: #2f9e55;
+  background: var(--accent);
 }
 
 .progress-thumb {
@@ -485,9 +485,9 @@ const handleClose = () => {
   top: 50%;
   width: 18px;
   height: 18px;
-  border: 2px solid #9aa2af;
+  border: 2px solid var(--text-muted);
   border-radius: 50%;
-  background: #fff;
+  background: var(--surface-raised);
   transform: translate(-50%, -50%);
 }
 
@@ -496,7 +496,7 @@ const handleClose = () => {
   align-items: center;
   justify-content: flex-end;
   gap: 14px;
-  color: #4f5968;
+  color: var(--text-secondary);
 }
 
 .volume-slider {
@@ -504,7 +504,7 @@ const handleClose = () => {
   height: 5px;
   -webkit-appearance: none;
   appearance: none;
-  background: #e4e8ed;
+  background: var(--border);
   border-radius: 999px;
   outline: none;
 }
@@ -514,23 +514,23 @@ const handleClose = () => {
   appearance: none;
   width: 18px;
   height: 18px;
-  border: 2px solid #9aa2af;
+  border: 2px solid var(--text-muted);
   border-radius: 50%;
-  background: #fff;
+  background: var(--surface-raised);
   cursor: pointer;
 }
 
 .volume-value {
   min-width: 42px;
-  color: #4f5968;
+  color: var(--text-secondary);
   font-size: 0.86rem;
 }
 
 .small-spinner {
   width: 22px;
   height: 22px;
-  border: 3px solid #dce3ed;
-  border-top-color: #2f9e55;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -538,7 +538,7 @@ const handleClose = () => {
 .error-message {
   margin-top: 6px;
   text-align: center;
-  color: #c33f3f;
+  color: var(--danger);
   font-size: 0.82rem;
 }
 

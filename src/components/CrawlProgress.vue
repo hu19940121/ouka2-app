@@ -54,7 +54,7 @@ const percentage = computed(() => {
 .crawl-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(16, 22, 32, 0.46);
+  background: var(--overlay);
   backdrop-filter: blur(6px);
   display: flex;
   align-items: center;
@@ -65,10 +65,10 @@ const percentage = computed(() => {
 
 .crawl-modal {
   width: min(440px, 100%);
-  border: 1px solid #e2e6ed;
+  border: 1px solid var(--border);
   border-radius: 8px;
-  background: #ffffff;
-  box-shadow: 0 24px 70px rgba(18, 28, 45, 0.22);
+  background: var(--surface);
+  box-shadow: 0 24px 70px var(--shadow-modal);
   padding: 22px;
 }
 
@@ -83,8 +83,8 @@ const percentage = computed(() => {
   width: 42px;
   height: 42px;
   border-radius: 8px;
-  background: #edf6ef;
-  color: #2f9e55;
+  background: var(--accent-softer);
+  color: var(--accent);
   display: grid;
   place-items: center;
   flex: 0 0 auto;
@@ -99,23 +99,23 @@ const percentage = computed(() => {
 
 .crawl-header h2 {
   margin: 0;
-  color: #151923;
+  color: var(--text-primary);
   font-size: 1.08rem;
   font-weight: 800;
 }
 
 .crawl-header p {
   margin: 4px 0 0;
-  color: #697181;
+  color: var(--text-secondary);
   font-size: 0.82rem;
   line-height: 1.45;
 }
 
 .crawl-content {
   padding: 16px;
-  border: 1px solid #e4e8ef;
+  border: 1px solid var(--border);
   border-radius: 8px;
-  background: #fbfcfd;
+  background: var(--surface-soft);
   margin-bottom: 14px;
 }
 
@@ -124,14 +124,14 @@ const percentage = computed(() => {
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 10px;
-  color: #4f5968;
+  color: var(--text-secondary);
   font-size: 0.86rem;
   font-weight: 700;
 }
 
 .progress-bar {
   height: 8px;
-  background: #e4e8ed;
+  background: var(--border);
   border-radius: 999px;
   overflow: hidden;
   margin-bottom: 14px;
@@ -139,7 +139,7 @@ const percentage = computed(() => {
 
 .progress-fill {
   height: 100%;
-  background: #2f9e55;
+  background: var(--accent);
   border-radius: inherit;
   transition: width 0.3s ease;
 }
@@ -149,23 +149,23 @@ const percentage = computed(() => {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  color: #697181;
+  color: var(--text-secondary);
   font-size: 0.9rem;
 }
 
 .stat-icon {
-  color: #2f9e55;
+  color: var(--accent);
   display: inline-flex;
 }
 
 .stats strong {
-  color: #2f9e55;
+  color: var(--accent);
   font-size: 1.08rem;
 }
 
 .crawl-tip {
   text-align: center;
-  color: #838b99;
+  color: var(--text-muted);
   font-size: 0.82rem;
   margin: 0;
 }

@@ -169,9 +169,9 @@ const serverText = computed(() => (props.status.running ? '运行中' : '已停�
 
 .panel-section {
   height: 100%;
-  border: 1px solid #e3e6eb;
+  border: 1px solid var(--border);
   border-radius: 8px;
-  background: #fff;
+  background: var(--surface);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -179,7 +179,7 @@ const serverText = computed(() => (props.status.running ? '运行中' : '已停�
 
 .panel-block {
   padding: 14px 16px;
-  border-bottom: 1px solid #e3e6eb;
+  border-bottom: 1px solid var(--border);
 }
 
 .panel-block:last-child {
@@ -199,7 +199,7 @@ const serverText = computed(() => (props.status.running ? '运行中' : '已停�
 
 .section-heading h2 {
   margin: 0;
-  color: #151923;
+  color: var(--text-primary);
   font-size: 0.98rem;
   font-weight: 800;
   letter-spacing: 0;
@@ -217,17 +217,17 @@ const serverText = computed(() => (props.status.running ? '运行中' : '已停�
   grid-template-columns: 64px minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px;
-  color: #333b48;
+  color: var(--text-strong);
 }
 
 .server-row span {
-  color: #555f6f;
+  color: var(--text-secondary);
   font-size: 0.9rem;
 }
 
 .server-row strong {
   min-width: 0;
-  color: #2f3642;
+  color: var(--text-strong);
   font-size: 0.9rem;
   font-weight: 520;
   overflow: hidden;
@@ -236,7 +236,7 @@ const serverText = computed(() => (props.status.running ? '运行中' : '已停�
 }
 
 .row-icon {
-  color: #5e6877;
+  color: var(--text-secondary);
 }
 
 .server-primary-action {
@@ -246,10 +246,10 @@ const serverText = computed(() => (props.status.running ? '运行中' : '已停�
 .ffmpeg-warning {
   margin: 12px 0 0;
   padding: 10px 12px;
-  border: 1px solid #f1cf9f;
+  border: 1px solid var(--warning-border);
   border-radius: 6px;
-  background: #fff8ed;
-  color: #9a620b;
+  background: var(--warning-soft);
+  color: var(--warning);
   font-size: 0.78rem;
   line-height: 1.45;
 }
@@ -257,7 +257,7 @@ const serverText = computed(() => (props.status.running ? '运行中' : '已停�
 .text-link {
   border: 0;
   background: transparent;
-  color: #5e6877;
+  color: var(--text-secondary);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -278,12 +278,12 @@ const serverText = computed(() => (props.status.running ? '运行中' : '已停�
   grid-template-columns: 12px 1fr auto;
   align-items: center;
   gap: 12px;
-  color: #555f6f;
+  color: var(--text-secondary);
   font-size: 0.92rem;
 }
 
 .connection-row strong {
-  color: #555f6f;
+  color: var(--text-secondary);
   font-weight: 520;
 }
 
@@ -291,7 +291,7 @@ const serverText = computed(() => (props.status.running ? '运行中' : '已停�
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #3fa65d;
+  background: var(--accent);
 }
 
 .install-section {
@@ -305,16 +305,16 @@ const serverText = computed(() => (props.status.running ? '运行中' : '已停�
   flex: 0 0 auto;
   min-height: 30px;
   padding-bottom: 8px;
-  border-bottom: 1px solid #edf0f4;
+  border-bottom: 1px solid var(--border-soft);
 }
 
 .queue-scroll {
   min-height: 0;
   flex: 1;
   margin-top: 10px;
-  border: 1px solid #e3e6eb;
+  border: 1px solid var(--border);
   border-radius: 6px;
-  background: #fbfcfd;
+  background: var(--surface-soft);
   overflow: hidden;
 }
 
@@ -337,8 +337,8 @@ const serverText = computed(() => (props.status.running ? '运行中' : '已停�
   gap: 10px;
   min-height: 52px;
   padding: 8px;
-  border-top: 1px solid #e3e6eb;
-  background: #fbfcfd;
+  border-top: 1px solid var(--border);
+  background: var(--surface-soft);
 }
 
 .queue-item:first-child {
@@ -346,7 +346,7 @@ const serverText = computed(() => (props.status.running ? '运行中' : '已停�
 }
 
 .drag-icon {
-  color: #838c99;
+  color: var(--text-muted);
   flex: 0 0 auto;
 }
 
@@ -364,13 +364,13 @@ const serverText = computed(() => (props.status.running ? '运行中' : '已停�
 }
 
 .queue-item-main strong {
-  color: #161a22;
+  color: var(--text-primary);
   font-size: 0.86rem;
 }
 
 .queue-item-main span {
   margin-top: 3px;
-  color: #788191;
+  color: var(--text-muted);
   font-size: 0.75rem;
 }
 
@@ -380,14 +380,14 @@ const serverText = computed(() => (props.status.running ? '运行中' : '已停�
   border: 0;
   border-radius: 50%;
   background: transparent;
-  color: #626b7a;
+  color: var(--text-secondary);
   cursor: pointer;
   flex: 0 0 auto;
 }
 
 .remove-button:hover {
-  background: #fff1f1;
-  color: #c33f3f;
+  background: var(--danger-soft);
+  color: var(--danger);
 }
 
 .queue-empty {
