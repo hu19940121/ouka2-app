@@ -13,8 +13,8 @@
     "windows": [
       {
         "title": "欧卡2中国电台",
-        "width": 1000,
-        "height": 700,
+        "width": 1440,
+        "height": 880,
         "minWidth": 800,
         "minHeight": 600,
         "center": true,
